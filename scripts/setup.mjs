@@ -50,7 +50,7 @@ async function askRequired(label, { help = "", existing = "", validate = null } 
     if (existing && (!a || a.endsWith("…(оставить)"))) a = existing;
     a = (a || "").trim();
     if (!a) {
-      console.log(`${C.y}  ⚠ Обязательное поле — без него Iva не заработает. Введи значение.${C.x}\n`);
+      console.log(`${C.y}  ⚠ Обязательное поле — без него Iva не заработает. Введите значение.${C.x}\n`);
       continue;
     }
     if (validate) {
@@ -95,7 +95,7 @@ async function opencodeCheck(key) {
   try {
     const res = await fetch(`${OPENCODE_BASE}/models`, { headers: { Authorization: `Bearer ${key}` } });
     if (res.status === 401 || res.status === 403) {
-      return "OpenCode не принял ключ (401/403). Проверь подписку Go и что ключ скопирован целиком.";
+      return "OpenCode не принял ключ (401/403). Проверьте подписку Go и что ключ скопирован целиком.";
     }
     return null; // 200/404 — ключ хотя бы валиден по форме
   } catch {
@@ -108,7 +108,7 @@ async function deepgramCheck(key) {
       headers: { Authorization: `Token ${key}` },
     });
     if (res.status === 401 || res.status === 403) {
-      return "Deepgram не принял ключ (401/403). Скопируй ключ целиком со страницы API Keys.";
+      return "Deepgram не принял ключ (401/403). Скопируйте ключ целиком со страницы API Keys.";
     }
     return null;
   } catch {
@@ -177,7 +177,7 @@ async function main() {
   } else {
     console.log(`\n${C.b}${C.g}  Настройка Iva — вводим секреты по шагам${C.x}`);
     console.log("  Займёт пару минут. Для каждого ключа подскажу, где его взять, и проверю на месте.");
-    console.log(`  ${C.y}Скрипт не завершится, пока не введёшь все обязательные секреты.${C.x}`);
+    console.log(`  ${C.y}Скрипт не завершится, пока вы не введёте все обязательные секреты.${C.x}`);
   }
 
   // ── Шаг 1: провайдер модели + модель ──────────────────────────────
@@ -192,14 +192,14 @@ async function main() {
   if (provider === "ollama") {
     console.log(`\n  Ключ Ollama: ${C.c}https://ollama.com/settings/keys${C.x} (Settings → Keys → Create key)`);
     let models = [];
-    out.OLLAMA_API_KEY = await askRequired("  Вставь ключ Ollama", {
+    out.OLLAMA_API_KEY = await askRequired("  Вставьте ключ Ollama", {
       existing: process.env.OLLAMA_API_KEY || existing.OLLAMA_API_KEY || "",
       validate: async (k) => {
         try {
           models = await ollamaModels(k);
           return null;
         } catch (e) {
-          return e.auth ? "Ollama не принял ключ. Скопируй заново (без пробелов)." : `не смог проверить: ${e.message}`;
+          return e.auth ? "Ollama не принял ключ. Скопируйте заново (без пробелов)." : `не смог проверить: ${e.message}`;
         }
       },
     });
@@ -208,8 +208,8 @@ async function main() {
     out.OLLAMA_CONTEXT_WINDOW = out.OLLAMA_CONTEXT_WINDOW || "131072";
     console.log(`  → модель: ${C.g}${out.OLLAMA_MODEL}${C.x}`);
   } else {
-    console.log(`\n  Ключ OpenCode: ${C.c}https://opencode.ai/auth${C.x} (подпишись на Go → скопируй API key).`);
-    out.OPENCODE_API_KEY = await askRequired("  Вставь OpenCode API key", {
+    console.log(`\n  Ключ OpenCode: ${C.c}https://opencode.ai/auth${C.x} (подпишитесь на Go → скопируйте API key).`);
+    out.OPENCODE_API_KEY = await askRequired("  Вставьте OpenCode API key", {
       existing: process.env.OPENCODE_API_KEY || existing.OPENCODE_API_KEY || "",
       validate: opencodeCheck,
     });
@@ -219,37 +219,37 @@ async function main() {
     console.log(`  → модель: ${C.g}${out.OPENCODE_MODEL}${C.x}`);
   }
   console.log(
-    `  ${C.y}Окно контекста не завышай:${C.x} компактация считает порог от него; завышенное окно = риск переполнения.`,
+    `  ${C.y}Окно контекста не завышайте:${C.x} компактация считает порог от него; завышенное окно = риск переполнения.`,
   );
 
   // ── Шаг 2: Deepgram (голос/видео) ─────────────────────────────────
   head(2, "Deepgram — расшифровка голоса и видео");
   console.log(`  Где взять ключ: ${C.c}https://console.deepgram.com${C.x}`);
-  console.log("    1) зарегистрируйся (дают бесплатный стартовый кредит)");
+  console.log("    1) зарегистрируйтесь (дают бесплатный стартовый кредит)");
   console.log("    2) API Keys → Create a New API Key");
-  console.log("    3) скопируй ключ");
-  out.DEEPGRAM_API_KEY = await askRequired("  Вставь Deepgram API key", {
+  console.log("    3) скопируйте ключ");
+  out.DEEPGRAM_API_KEY = await askRequired("  Вставьте Deepgram API key", {
     existing: process.env.DEEPGRAM_API_KEY || existing.DEEPGRAM_API_KEY || "",
     validate: deepgramCheck,
   });
   out.DEEPGRAM_LANGUAGE = await ask("  Язык распознавания (multi = авто ru/uz/en)", out.DEEPGRAM_LANGUAGE || "multi");
 
   // ── Шаг 3: Telegram-бот ───────────────────────────────────────────
-  head(3, "Telegram-бот — через него ты говоришь с Iva");
-  console.log("  Создай бота у @BotFather в Telegram:");
-  console.log("    1) открой чат с @BotFather");
-  console.log("    2) отправь /newbot");
-  console.log("    3) задай имя и username бота");
-  console.log("    4) скопируй token вида 123456789:ABCdef...");
+  head(3, "Telegram-бот — через него вы говорите с Iva");
+  console.log("  Создайте бота у @BotFather в Telegram:");
+  console.log("    1) откройте чат с @BotFather");
+  console.log("    2) отправьте /newbot");
+  console.log("    3) задайте имя и username бота");
+  console.log("    4) скопируйте token вида 123456789:ABCdef...");
   let me = null;
-  out.TELEGRAM_BOT_TOKEN = await askRequired("  Вставь Bot token", {
+  out.TELEGRAM_BOT_TOKEN = await askRequired("  Вставьте Bot token", {
     existing: existing.TELEGRAM_BOT_TOKEN || "",
     validate: async (t) => {
       try {
         me = await telegramGetMe(t);
         return null;
       } catch (e) {
-        return `Telegram не принял токен (${e.message}). Скопируй заново у @BotFather.`;
+        return `Telegram не принял токен (${e.message}). Скопируйте заново у @BotFather.`;
       }
     },
   });
@@ -261,15 +261,15 @@ async function main() {
   // ── Шаг 4: доверенные пользователи (цикл до ≥1 ID) ────────────────
   head(4, "Доступ — кому бот вообще отвечает");
   console.log(`  ${C.y}ВАЖНО:${C.x} Iva отвечает ТОЛЬКО доверенным Telegram ID.`);
-  console.log("  Без хотя бы одного ID бот промолчит всем (так твои данные защищены).");
+  console.log("  Без хотя бы одного ID бот промолчит всем (так ваши данные защищены).");
   const ids = new Set(
     (existing.TELEGRAM_ALLOWED_USER_IDS || "").split(/[,\s]+/).map((s) => s.trim()).filter(Boolean),
   );
   while (ids.size === 0) {
     console.log(
-      `\n  Определим твой ID. ${C.c}Открой Telegram, найди @${out.TELEGRAM_BOT_USERNAME || "своего_бота"} и напиши ему любое сообщение${C.x} (напр. «привет»).`,
+      `\n  Определим ваш ID. ${C.c}Откройте Telegram, найдите @${out.TELEGRAM_BOT_USERNAME || "своего_бота"} и напишите ему любое сообщение${C.x} (напр. «привет»).`,
     );
-    await ask("  Написал боту? нажми Enter");
+    await ask("  Написали боту? нажмите Enter");
     try {
       const found = await fetchTelegramUserIds(out.TELEGRAM_BOT_TOKEN);
       if (found.length) {
@@ -281,14 +281,14 @@ async function main() {
           : found;
         chosen.forEach((u) => ids.add(u.id));
       } else {
-        console.log(`${C.y}  Не вижу сообщений боту. Точно написал? (если уже стоит вебхук — getUpdates не отдаёт апдейты)${C.x}`);
+        console.log(`${C.y}  Не вижу сообщений боту. Точно написали? (если уже стоит вебхук — getUpdates не отдаёт апдейты)${C.x}`);
       }
     } catch (e) {
       console.log(`${C.y}  Не смог получить апдейты: ${e.message}${C.x}`);
     }
     if (ids.size === 0) {
       const manual = await ask(
-        "  Введи свой Telegram ID вручную (узнать: напиши @userinfobot), или Enter — попробовать снова",
+        "  Введите свой Telegram ID вручную (узнать: напишите @userinfobot), или Enter — попробовать снова",
         "",
       );
       manual.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean).forEach((s) => ids.add(s));
@@ -300,7 +300,7 @@ async function main() {
 
   // ── Шаг 5: часовой пояс и vault ───────────────────────────────────
   head(5, "Часовой пояс и хранилище памяти");
-  console.log("  Часовой пояс нужен, чтобы Iva понимала твоё реальное время, а не время сервера.");
+  console.log("  Часовой пояс нужен, чтобы Iva понимала ваше реальное время, а не время сервера.");
   out.ASSISTANT_TIMEZONE = await ask(
     "  Часовой пояс (IANA, напр. Asia/Almaty, Asia/Tashkent, Europe/Moscow)",
     out.ASSISTANT_TIMEZONE || "Asia/Almaty",

@@ -177,7 +177,7 @@ async function cmdUpdate(args) {
     sc("restart", ...SERVICES);
     ok("Перезапущено: iva + telegram-poll");
   } else {
-    warn("systemd недоступен — перезапусти процесс вручную");
+    warn("systemd недоступен — перезапустите процесс вручную");
   }
   ok(`Готово: ${before} → ${after}`);
   await notifyTelegram(`✅ Iva обновлена: ${before} → ${after}`);
@@ -205,7 +205,7 @@ function cmdDoctor() {
   else (bad(`Node ${process.versions.node} < 24 — обнови: nvm install 24`), badN++);
 
   // 2. .env + обязательные ключи (та же логика REQUIRED, что в scripts/setup.mjs)
-  if (!existsSync(ENV_PATH)) (bad(".env отсутствует — запусти: iva config"), badN++);
+  if (!existsSync(ENV_PATH)) (bad(".env отсутствует — запустите: iva config"), badN++);
   else {
     const prov = env.MODEL_PROVIDER || "ollama";
     const REQUIRED = [
@@ -217,7 +217,7 @@ function cmdDoctor() {
     ];
     const missing = REQUIRED.filter((k) => !(env[k] || "").trim());
     if (!missing.length) (ok(`.env заполнен (провайдер: ${prov})`), okN++);
-    else (bad(`.env неполный, нет: ${missing.join(", ")} — запусти: iva config`), badN++);
+    else (bad(`.env неполный, нет: ${missing.join(", ")} — запустите: iva config`), badN++);
   }
 
   // 3. Сборка
