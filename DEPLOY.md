@@ -2,7 +2,7 @@
 
 ## Установка одной командой (bare VPS)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/smixs/eve-assistant/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/smixs/iva/main/install.sh | bash
 ```
 `install.sh` сам ставит системные зависимости (`git`, `gh`, `python3`, `ffmpeg`), `uv`,
 Node 24+ (nvm), npm-зависимости, проводит интерактивную настройку (`setup.mjs`), собирает
@@ -79,17 +79,17 @@ Scaffold-канал использует `localDev()` + `placeholderAuth()`. В 
 ## Telegram: polling (по умолчанию)
 Бот работает через **long-polling** — отдельный процесс сам забирает апдейты у Telegram и
 скармливает их локальному eve. **Домен/HTTPS/reverse-proxy не нужны.** `install.sh` ставит и
-запускает сервис `eve-telegram-poll`; вручную — `npm run poll`. Статус/логи:
+запускает сервис `iva-telegram-poll`; вручную — `npm run poll`. Статус/логи:
 ```bash
-systemctl --user status eve-telegram-poll
-journalctl --user -u eve-telegram-poll -f
+systemctl --user status iva-telegram-poll
+journalctl --user -u iva-telegram-poll -f
 ```
 Реализация: `scripts/telegram-poll.mjs` (`getUpdates` → `POST 127.0.0.1:3000/eve/v1/telegram`
 с заголовком `X-Telegram-Bot-Api-Secret-Token`). Offset хранится в `data/telegram-offset.json`.
 
 ### Webhook (опционально, если есть публичный HTTPS)
 Polling и webhook взаимоисключающи. Хочешь webhook — выключи мост
-(`systemctl --user disable --now eve-telegram-poll`) и зарегистрируй вебхук:
+(`systemctl --user disable --now iva-telegram-poll`) и зарегистрируй вебхук:
 ```bash
 curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
   -H "Content-Type: application/json" \
@@ -116,17 +116,17 @@ curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
 > только на Vercel. Поэтому роллапы памяти крутятся через systemd user-таймеры, которые драйвят
 > Iva через `eve/client`.
 
-`install.sh` устанавливает юниты из `deploy/eve-memory-*.{service,timer}` в
+`install.sh` устанавливает юниты из `deploy/iva-memory-*.{service,timer}` в
 `~/.config/systemd/user/` и включает их (`systemctl --user enable --now`, `loginctl enable-linger`).
 `OnCalendar` берёт `TZ` из `EnvironmentFile=.env` (`ASSISTANT_TIMEZONE`). Таймеры:
 
 | Таймер | Когда | Что делает |
 |--------|-------|-----------|
-| `eve-memory-daily`   | ночью     | транскрипт дня → карточки + daily-summary, отчёт в Telegram |
-| `eve-memory-weekly`  | Вс ночью  | 7 daily-summary → weekly-summary + MOC, отчёт в Telegram |
-| `eve-memory-monthly` | 1-е число | weekly → monthly-summary |
-| `eve-memory-yearly`  | 1 января  | monthly → yearly-summary |
-| `eve-memory-doctor`  | ночью     | autograph health/decay/moc/dedup + `git commit && push` vault |
+| `iva-memory-daily`   | ночью     | транскрипт дня → карточки + daily-summary, отчёт в Telegram |
+| `iva-memory-weekly`  | Вс ночью  | 7 daily-summary → weekly-summary + MOC, отчёт в Telegram |
+| `iva-memory-monthly` | 1-е число | weekly → monthly-summary |
+| `iva-memory-yearly`  | 1 января  | monthly → yearly-summary |
+| `iva-memory-doctor`  | ночью     | autograph health/decay/moc/dedup + `git commit && push` vault |
 
 Ручной прогон: `npm run memory -- daily` (или `weekly`/`monthly`/`yearly`), `npm run doctor`.
 Статус: `systemctl --user list-timers`.

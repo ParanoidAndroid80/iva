@@ -5,7 +5,7 @@
 **Личный агент. Ставится одной командой, настраивается за пару минут, работает сразу.**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/smixs/eve-assistant/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/smixs/iva/main/install.sh | bash
 ```
 
 </div>
@@ -31,7 +31,7 @@ Iva — твой личный ИИ-агент на собственном сер
 ## Установка
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/smixs/eve-assistant/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/smixs/iva/main/install.sh | bash
 ```
 
 Ответь на вопросы установщика (провайдер, ключи, Telegram-бот) — и пиши боту.

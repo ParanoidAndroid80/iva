@@ -98,7 +98,7 @@
 ## 2026-06-20 (v2 — bare-VPS + память DAG + Deepgram)
 
 ### Decisions
-- **Sandbox убран → host-native тулзы.** На bare VPS у Евы полный shell + файловый доступ через
+- **Sandbox убран → host-native тулзы.** На bare VPS у Iva полный shell + файловый доступ через
   override встроенных тулзов (`bash`/`read_file`/`write_file`/`glob`/`grep`) на Node `fs`/`child_process`.
   Снимает зависимость от Docker/microsandbox. Периметр держит allowlist Telegram (fail-closed).
 - **Deepgram в TS через REST** (`POST /v1/listen?model=nova-3&language=multi`), без Python в рантайме
@@ -106,7 +106,7 @@
   при необходимости дублируется в rollup-скрипт. Голос/видео берутся из `message.raw` (eve парсит как
   attachments только photo/document).
 - **Двусторонний транскрипт** vault: сторона юзера пишется в `onMessage` (`context:[transcript]` доносит
-  расшифровку до модели при пустом `message.text`), сторона Евы — `message.completed` хук
+  расшифровку до модели при пустом `message.text`), сторона Iva — `message.completed` хук
   `agent/hooks/transcript.ts`.
 - **Память — DAG через systemd-таймеры + `eve/client`** (`scripts/memory/rollup.ts <period>`,
   `doctor.ts`), т.к. eve-расписания на self-host не идут. Один параметризованный rollup-скрипт;
@@ -124,7 +124,7 @@
   Node 24 через nvm (как было). Затем `npm ci` → `eve build` → `git init` vault → systemd сервис + таймеры.
 - **ffmpeg ставится, но помечен опциональным** — nova-3 обычно принимает видео-контейнеры напрямую
   (берёт аудиодорожку); ffmpeg как страховка под перекодировку.
-- **Таймеры памяти ставятся из `deploy/eve-memory-*.{service,timer}`** (создаёт компонент памяти). install.sh
+- **Таймеры памяти ставятся из `deploy/iva-memory-*.{service,timer}`** (создаёт компонент памяти). install.sh
   копирует юниты в `~/.config/systemd/user/` с подстановкой плейсхолдеров `__PROJECT_DIR__`/`__NODE_BIN__`
   (sed, безвредно если их нет), `enable --now` + `loginctl enable-linger`. Если deploy-юнитов ещё нет —
   пропускает с warn (устойчиво к порядку сборки компонентов).
@@ -163,8 +163,10 @@
 ## 2026-06-20 (v3 — Iva: провайдер, overflow, команды, веб, браузер, MCP)
 
 ### Decisions
-- **Ребренд «Ева» → «Iva»** (имя = «ива», дерево; память древовидная). Инфра-имена (`eve-assistant`,
-  репо, npm name) НЕ трогали — рискованно и не нужно.
+- **Ребренд «Ева» → «Iva»** (имя = «ива», дерево; память древовидная). Инфра-имена
+  (сервисы `eve-*`, каталог `~/eve-assistant`, репо, npm name) сперва не трогали; позже
+  переименовали в `iva` при подготовке к чистой переустановке. Фреймворк `eve` (npm-пакет,
+  `eve build`, импорты `eve/*`) — НЕ трогаем, это апстрим-зависимость.
 - **Провайдер модели** через `MODEL_PROVIDER` (ollama|opencode), оба OpenAI-совместимы, выбор в setup.
   OpenCode: `https://opencode.ai/zen/go/v1`, модели хардкодом (нет /models). Точные id моделей OpenCode —
   проверить вживую (взял правдоподобные `opencode-go/*`).

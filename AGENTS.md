@@ -6,7 +6,7 @@ This project uses the eve framework. Before writing code, always read the releva
 - **Без sandbox.** Тулзы `bash`/`read_file`/`write_file`/`glob`/`grep` host-native (Node `fs`/`child_process`),
   полный доступ к VPS. Защита периметра — allowlist Telegram (fail-closed).
 - **Telegram — polling по умолчанию.** eve-канал — webhook-приёмник (`POST /eve/v1/telegram`), но публичного
-  HTTPS на bare-VPS нет. Мост `scripts/telegram-poll.mjs` (сервис `eve-telegram-poll`) сам забирает апдейты
+  HTTPS на bare-VPS нет. Мост `scripts/telegram-poll.mjs` (сервис `iva-telegram-poll`) сам забирает апдейты
   (`getUpdates`) и POST-ит их в локальный роут с секретным заголовком. Прокси/домен не нужны; код канала не меняется.
 - **Deepgram.** Голос/видео/аудио из Telegram транскрибируются (nova-3, `DEEPGRAM_LANGUAGE=multi`) и пишутся
   в дневной транскрипт vault до попадания к Iva.
@@ -20,7 +20,7 @@ This project uses the eve framework. Before writing code, always read the releva
   ЖИВОЙ vault (`ASSISTANT_VAULT_DIR`, дефолт `./vault`) — ОТДЕЛЬНЫЙ приватный git-репо: личные транскрипты/блобы
   в код-репо не попадают (`/vault/` в `.gitignore`). Создаётся из шаблона: `npm run init-vault` (install.sh зовёт сам);
   затем `gh auth login` + приватный remote. doctor.ts коммитит/пушит живой vault.
-- **Память — systemd-таймеры** (`deploy/eve-memory-*.{service,timer}`): daily/weekly/monthly/yearly + doctor,
+- **Память — systemd-таймеры** (`deploy/iva-memory-*.{service,timer}`): daily/weekly/monthly/yearly + doctor,
   драйвят Iva через `eve/client`. eve-расписания (`defineSchedule`) на self-host НЕ срабатывают (только Vercel Cron).
 - **Время** — `ASSISTANT_TIMEZONE` (→ `TZ`) + динамическая инструкция `now`.
 
