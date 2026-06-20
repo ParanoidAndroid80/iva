@@ -76,8 +76,20 @@ Scaffold-канал использует `localDev()` + `placeholderAuth()`. В 
 либо для приватного single-user сервера выдать bearer и настроить канал на него
 (тогда cron-скрипту передавать `ASSISTANT_BEARER`).
 
-## Telegram webhook
-После деплоя на публичный HTTPS-домен зарегистрируй вебхук:
+## Telegram: polling (по умолчанию)
+Бот работает через **long-polling** — отдельный процесс сам забирает апдейты у Telegram и
+скармливает их локальному eve. **Домен/HTTPS/reverse-proxy не нужны.** `install.sh` ставит и
+запускает сервис `eve-telegram-poll`; вручную — `npm run poll`. Статус/логи:
+```bash
+systemctl --user status eve-telegram-poll
+journalctl --user -u eve-telegram-poll -f
+```
+Реализация: `scripts/telegram-poll.mjs` (`getUpdates` → `POST 127.0.0.1:3000/eve/v1/telegram`
+с заголовком `X-Telegram-Bot-Api-Secret-Token`). Offset хранится в `data/telegram-offset.json`.
+
+### Webhook (опционально, если есть публичный HTTPS)
+Polling и webhook взаимоисключающи. Хочешь webhook — выключи мост
+(`systemctl --user disable --now eve-telegram-poll`) и зарегистрируй вебхук:
 ```bash
 curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
   -H "Content-Type: application/json" \
@@ -85,8 +97,6 @@ curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
        "secret_token":"'"$TELEGRAM_WEBHOOK_SECRET_TOKEN"'",
        "allowed_updates":["message","callback_query"]}'
 ```
-Свой `chat_id` для дайджеста: напиши боту, затем
-`curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/getUpdates"` → поле `message.chat.id`.
 
 ### Доступ (важно)
 Бот отвечает только ID из `TELEGRAM_ALLOWED_USER_IDS` (через запятую). Пусто = не отвечает

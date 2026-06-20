@@ -1,0 +1,20 @@
+# systemd USER unit — Telegram polling-мост (бот отвечает без webhook/прокси).
+#
+# Сам забирает апдейты у Telegram (getUpdates) и POST-ит их в локальный eve.
+# Плейсхолдеры __PROJECT_DIR__/__NODE_BIN__ подставляет install.sh.
+# Установка вручную: см. комментарии в deploy/eve-memory-daily.service.
+[Unit]
+Description=Eve Telegram polling bridge (getUpdates → local webhook)
+After=network-online.target eve-assistant.service
+Wants=eve-assistant.service
+
+[Service]
+WorkingDirectory=__PROJECT_DIR__
+EnvironmentFile=__PROJECT_DIR__/.env
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=__NODE_BIN__ --env-file=.env scripts/telegram-poll.mjs
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

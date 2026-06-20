@@ -5,6 +5,9 @@ This project uses the eve framework. Before writing code, always read the releva
 ## Архитектура (self-host bare-VPS)
 - **Без sandbox.** Тулзы `bash`/`read_file`/`write_file`/`glob`/`grep` host-native (Node `fs`/`child_process`),
   полный доступ к VPS. Защита периметра — allowlist Telegram (fail-closed).
+- **Telegram — polling по умолчанию.** eve-канал — webhook-приёмник (`POST /eve/v1/telegram`), но публичного
+  HTTPS на bare-VPS нет. Мост `scripts/telegram-poll.mjs` (сервис `eve-telegram-poll`) сам забирает апдейты
+  (`getUpdates`) и POST-ит их в локальный роут с секретным заголовком. Прокси/домен не нужны; код канала не меняется.
 - **Deepgram.** Голос/видео/аудио из Telegram транскрибируются (nova-3, `DEEPGRAM_LANGUAGE=multi`) и пишутся
   в дневной транскрипт vault до попадания к Еве.
 - **Vault.** Скелет (правила, autograph, dbrain-processor, schema) живёт в код-репо как `vault-template/`.

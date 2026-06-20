@@ -14,6 +14,7 @@
     "smoke": "node scripts/smoke-test.mjs",
     "init-vault": "node scripts/init-vault.mjs",
     "digest": "node scripts/daily-digest.ts",
+    "poll": "node --env-file=.env scripts/telegram-poll.mjs",
     "memory": "node --env-file=.env scripts/memory/rollup.ts",
     "doctor": "node --env-file=.env scripts/memory/doctor.ts",
     "typecheck": "tsgo"
