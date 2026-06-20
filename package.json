@@ -15,7 +15,6 @@
     "build": "eve build",
     "dev": "eve dev",
     "start": "eve start",
-    "smoke": "node scripts/smoke-test.mjs",
     "init-vault": "node scripts/init-vault.mjs",
     "digest": "node scripts/daily-digest.ts",
     "poll": "node --env-file=.env scripts/telegram-poll.mjs",
