@@ -186,3 +186,41 @@
   Chromium+sudo-либы). Iva зовёт через host-bash; скилл-стаб указывает на `agent-browser skills get core`.
   Бинарь в npm-global → путь добавлен в PATH сервиса; `AGENT_BROWSER_MAX_OUTPUT=24000` против раздувания окна.
 - **MCP** — заскаффолжен `agent/connections/` (README + example.ts.txt, не активен пока).
+
+## 2026-06-20 (двухскоростная память: MAP-роутер + CORE-ядро)
+
+Цель: Iva «непрожорлива, но помнит». В контексте всегда только индекс, содержимое vault — лениво
+через grep. Основа — ресёрч hermes-agent + nanobot + best-practices (workflow wc74rbabr).
+
+### Decisions
+- **Always-on пол = 4 слоя через eve instructions** (грузятся каждый турн, переживают компактацию —
+  instructions не часть сжимаемой истории): `instructions.md` (личность) → `instructions/10-map.md`
+  (MAP-роутер) → `instructions/20-core.ts` (CORE-ядро, динамика) → `instructions/now.ts` (часы). Пол ≤~2.5k т.
+- **10-map.md сделан `.md`, не `.ts`.** eve читает `instructions/` нерекурсивно, принимает и `.md` и
+  `.ts`, склейка по `localeCompare` (`node_modules/eve/docs/instructions.mdx:35`). Префиксы `10-/20-/now`
+  дают порядок map→core→now. Статичный `.md` = байт-стабильный префикс (тёплый prefix-cache, урок hermes).
+- **CORE = `vault/CORE.md`, читается с диска каждый турн** (`20-core.ts`, аналог core-memory MemGPT):
+  кто пользователь, постоянные предпочтения, ≤3 цели, указатели. Hard-cap 1200 симв — `20-core.ts`
+  усекает на лету, `doctor.ts` алертит при переполнении.
+- **Read/write split (nanobot):** CORE/cards/MOC пишет ночной `rollup.ts daily`. Исключение по решению
+  пользователя — на явное «запомни …» агент сам правит `CORE.md` через `write_file` (инструкция в 10-map.md).
+- **grep-first, без эмбеддингов** (best-practices «Is Grep All You Need?»): для маленького vault grep ≈
+  vector-RAG, ноль обслуживания, не нарушает гард против незапрошенных реиндексов.
+- **Сиды в шаблон:** `vault-template/{CORE.md,MOC.md}` + правило `.claude/rules/core-format.md` (MECE:
+  что в CORE vs cards vs tasks, лимит, кто пишет). Дают хаб для линковки карточек с первого дня.
+
+### Deviations (от плана синтеза)
+- Реальный layout: саммари дня в `summaries/daily/`, а `weekly/`/`monthly/`/`yearly/` — ВЕРХНЕУРОВНЕВЫЕ.
+  MAP приведён к факту.
+- «MOC генерится» уже было — `doctor.ts:83` гоняет `moc.py generate`. Добавил только CORE-guard.
+- «init-vault копирует CORE/MOC» — не нужно: `init-vault.mjs` делает `cpSync(recursive)`, верхнеуровневые
+  файлы копируются сами.
+
+### Gotchas
+- `20-core.ts` самодостаточен: только `eve/instructions` + `node:fs`/`node:path` (гоча eve 0.11.4 —
+  без общего `lib/` и относительных `.js`).
+- `instructions.md` и `instructions.ts` в корне одновременно = build error. У нас только `.md` — ок.
+
+### Open questions (ответил сам)
+- Шаблон `CORE.md` — generic (ru/кратко по умолчанию), без хардкода конкретного пользователя:
+  заполняется по мере общения и ночным rollup.
