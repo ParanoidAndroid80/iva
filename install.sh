@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Установка ассистента (Ева) одной командой на голом VPS:
+# Установка Iva (личный агент с долговременной памятью) одной командой на голом VPS:
 #
 #   curl -fsSL https://raw.githubusercontent.com/smixs/eve-assistant/main/install.sh | bash
 #
@@ -82,7 +82,7 @@ prompt_yes_no() {
 }
 
 echo
-echo "  ${c_green}Ева${c_reset} — личный ассистент на eve + Ollama Cloud (bare-VPS)"
+echo "  ${c_green}Iva${c_reset} — личный агент с долговременной памятью, который просто работает"
 echo "  ─────────────────────────────────────────────"
 
 # root запускает напрямую; иначе через sudo (один раз кешируем пароль).
@@ -230,7 +230,27 @@ if [ -f package-lock.json ]; then npm ci; else npm install; fi
 ok "Зависимости установлены"
 
 # ─────────────────────────────────────────────────────────────────────────
-# 6. Интерактивная настройка (Ollama + модель + Telegram + Deepgram + TZ + vault)
+# 5b. Браузер agent-browser (веб-автоматизация: формы, логины, скриншоты, парсинг)
+# ─────────────────────────────────────────────────────────────────────────
+# Бинарь ставится в npm-global; путь нужен и здесь, и в PATH сервиса (ниже).
+NPM_GLOBAL_BIN="$(npm prefix -g 2>/dev/null)/bin"
+export PATH="$NPM_GLOBAL_BIN:$PATH"
+step "Ставлю браузер agent-browser…"
+if npm i -g agent-browser >/dev/null 2>&1; then
+  # Chrome for Testing + системные Linux-либы для Chromium (sudo уже закеширован).
+  agent-browser install --with-deps >/dev/null 2>&1 \
+    || warn "agent-browser install --with-deps не прошёл — доставишь позже (agent-browser install --with-deps)"
+  if agent-browser doctor >/dev/null 2>&1; then
+    ok "agent-browser готов"
+  else
+    warn "agent-browser doctor нашёл проблемы — позже: agent-browser doctor --fix"
+  fi
+else
+  warn "не удалось поставить agent-browser — браузерные задачи недоступны, остальное работает"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────
+# 6. Интерактивная настройка (провайдер + модель + Telegram + Deepgram + TZ + vault)
 #    Читает /dev/tty → работает и при `curl | bash`. Без терминала — откладываем.
 # ─────────────────────────────────────────────────────────────────────────
 SETUP_DONE=false
@@ -278,7 +298,7 @@ elif prompt_yes_no "Завести автозапуск через systemd (се
   # Основной сервис агента
   cat > "$UNIT_DIR/eve-assistant.service" <<EOF
 [Unit]
-Description=eve assistant (Ева)
+Description=Iva (eve assistant)
 After=network-online.target
 
 [Service]
@@ -286,6 +306,8 @@ WorkingDirectory=$PROJECT_DIR
 EnvironmentFile=$PROJECT_DIR/.env
 ExecStart=$NODE_BIN $PROJECT_DIR/.output/server/index.mjs
 Environment=PORT=3000
+Environment=PATH=$NPM_GLOBAL_BIN:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=AGENT_BROWSER_MAX_OUTPUT=24000
 Restart=always
 
 [Install]
@@ -341,7 +363,7 @@ EOF
   if [ -n "$_bot" ] && [ -n "$_chat" ]; then
     curl -s "https://api.telegram.org/bot$_bot/sendMessage" \
       --data-urlencode "chat_id=$_chat" \
-      --data-urlencode "text=✅ Ева установлена и на связи. Напиши мне сообщение — отвечу." >/dev/null 2>&1 \
+      --data-urlencode "text=✅ Iva установлена и на связи. Напиши мне сообщение — отвечу." >/dev/null 2>&1 \
       && ok "Отправил тебе подтверждение в Telegram — открой чат с ботом" \
       || warn "не смог отправить подтверждение (бот всё равно работает — просто напиши ему)"
   fi
