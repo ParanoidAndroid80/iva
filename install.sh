@@ -4,7 +4,7 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/smixs/eve-assistant/main/install.sh | bash
 #
-# Ставит системные зависимости (git, gh, python3, ffmpeg), uv, Node 24+ (nvm),
+# Ставит системные зависимости (git, gh, python3, ffmpeg, pandoc, poppler), uv, Node 24+ (nvm),
 # npm-зависимости, проводит интерактивную настройку (Ollama + модель + Telegram +
 # Deepgram + часовой пояс + vault), собирает агента и заводит systemd user-сервис
 # плюс таймеры памяти. Vault инициализируется как git-репо для бэкапа.
@@ -49,6 +49,12 @@ command -v git    >/dev/null 2>&1 || need_pkgs+=("git")
 command -v gh     >/dev/null 2>&1 || need_pkgs+=("gh")
 command -v python3>/dev/null 2>&1 || need_pkgs+=("python3")
 command -v ffmpeg >/dev/null 2>&1 || need_pkgs+=("ffmpeg")
+# Извлечение текста из присланных файлов: pandoc (docx и пр.), pdftotext (pdf).
+command -v pandoc >/dev/null 2>&1 || need_pkgs+=("pandoc")
+if ! command -v pdftotext >/dev/null 2>&1; then
+  # Имя пакета зависит от менеджера: brew → poppler, apt/dnf → poppler-utils.
+  case "$PM" in brew) need_pkgs+=("poppler") ;; *) need_pkgs+=("poppler-utils") ;; esac
+fi
 
 if [ "${#need_pkgs[@]}" -gt 0 ]; then
   if [ "$PM" = "none" ]; then
