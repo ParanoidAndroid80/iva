@@ -252,10 +252,12 @@ if npm i -g agent-browser; then
     node -e 'const fs=require("fs"),os=require("os"),p=require("path");const d=p.join(os.homedir(),".agent-browser"),f=p.join(d,"config.json");fs.mkdirSync(d,{recursive:true});let c={};try{c=JSON.parse(fs.readFileSync(f,"utf8"))}catch{}const w="--no-sandbox";const cur=typeof c.args=="string"?c.args:Array.isArray(c.args)?c.args.join(","):"";if(!cur.split(/[,\n]/).map(s=>s.trim()).filter(Boolean).includes(w)){c.args=cur?cur+","+w:w;fs.writeFileSync(f,JSON.stringify(c,null,2)+"\n")}' \
       2>/dev/null || warn "не настроил ~/.agent-browser/config.json — добавь \"args\": \"--no-sandbox\" вручную"
   fi
-  if agent-browser doctor >/dev/null 2>&1; then
+  # Реальная проверка запуска: doctor игнорирует config-args и ложно ругается на sandbox.
+  if agent-browser open about:blank >/dev/null 2>&1; then
+    agent-browser close --all >/dev/null 2>&1 || true
     ok "agent-browser готов"
   else
-    warn "agent-browser doctor нашёл проблемы — позже: agent-browser doctor --fix"
+    warn "agent-browser поставлен, но Chrome не запустился — проверь позже: agent-browser open about:blank"
   fi
 else
   warn "не удалось поставить agent-browser — браузерные задачи недоступны, остальное работает"
