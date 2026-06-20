@@ -210,6 +210,100 @@ const MEDIA_KINDS: ReadonlyArray<readonly [string, "voice" | "video"]> = [
   ["animation", "video"],
 ];
 
+// --- Markdown → Telegram HTML (parse_mode=HTML) ---
+//
+// Модель отвечает обычным Markdown, а eve по умолчанию шлёт его plain-текстом
+// (без parse_mode) → `**жирный**` и `` `код` `` видны буквами. Конвертим в
+// подмножество HTML, которое Telegram рендерит нативно (b/i/s/u/code/pre/a/
+// blockquote). HTML выбран намеренно: экранировать надо только &<> (против
+// капризного MarkdownV2 с ~18 спецсимволами), а на любой сбой парсинга есть
+// plain-fallback в обработчике message.completed.
+//
+// САМОДОСТАТОЧНО: только чистые строковые операции (см. гочу про eve dev).
+const HTML_ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;" };
+const escHtml = (s: string): string => s.replace(/[&<>]/g, (c) => HTML_ESC[c]!);
+
+// Инлайн-разметка строки текста (НЕ кода): прячем inline-code в плейсхолдеры,
+// экранируем остальное, накладываем теги, возвращаем код назад.
+function inlineHtml(text: string): string {
+  const spans: string[] = [];
+  let s = text.replace(/`([^`]+)`/g, (_m, c: string) => {
+    spans.push(`<code>${escHtml(c)}</code>`);
+    return ` ${spans.length - 1} `;
+  });
+  s = escHtml(s);
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_m, t: string, u: string) => `<a href="${u}">${t}</a>`);
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/__([^_]+)__/g, "<b>$1</b>");
+  s = s.replace(/~~([^~]+)~~/g, "<s>$1</s>");
+  s = s
+    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "<i>$1</i>")
+    .replace(/(?<!\w)_([^_\n]+)_(?!\w)/g, "<i>$1</i>");
+  return s.replace(/ (\d+) /g, (_m, i: string) => spans[Number(i)]!);
+}
+
+// GFM-разделитель таблицы: |---|:--:|---| (нужен хотя бы один внутренний '|').
+const TABLE_SEP_RE = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)+\|?\s*$/;
+const tableCells = (l: string): string[] =>
+  l.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
+
+// Блочный + инлайн конвертер. Таблицы → строки (в Telegram таблиц нет),
+// заголовки/цитаты/списки → нативные аналоги.
+function mdToTelegramHtml(md: string): string {
+  const lines = md.replace(/\r\n/g, "\n").split("\n");
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i]!;
+    const fence = /^```(\w*)\s*$/.exec(line);
+    if (fence) {
+      const body: string[] = [];
+      i++;
+      while (i < lines.length && !/^```\s*$/.test(lines[i]!)) body.push(lines[i++]!);
+      i++; // закрывающая ```
+      out.push(`<pre>${escHtml(body.join("\n"))}</pre>`);
+      continue;
+    }
+    // Таблица: строка с '|' + следующая-разделитель → header жирным, строки списком.
+    if (line.includes("|") && i + 1 < lines.length && TABLE_SEP_RE.test(lines[i + 1]!)) {
+      out.push(`<b>${tableCells(line).map(inlineHtml).join("  ·  ")}</b>`);
+      i += 2;
+      while (i < lines.length && lines[i]!.includes("|") && lines[i]!.trim() !== "") {
+        out.push(tableCells(lines[i]!).map(inlineHtml).join("  ·  "));
+        i++;
+      }
+      continue;
+    }
+    const h = /^#{1,6}\s+(.*)$/.exec(line);
+    if (h) { out.push(`<b>${inlineHtml(h[1]!.trim())}</b>`); i++; continue; }
+    const q = /^>\s?(.*)$/.exec(line);
+    if (q) { out.push(`<blockquote>${inlineHtml(q[1]!)}</blockquote>`); i++; continue; }
+    const ul = /^\s*[-*+]\s+(.*)$/.exec(line);
+    if (ul) { out.push(`• ${inlineHtml(ul[1]!)}`); i++; continue; }
+    const ol = /^\s*(\d+)\.\s+(.*)$/.exec(line);
+    if (ol) { out.push(`${ol[1]}. ${inlineHtml(ol[2]!)}`); i++; continue; }
+    if (/^\s*([-*_])\1{2,}\s*$/.test(line)) { out.push("—"); i++; continue; }
+    out.push(line.trim() === "" ? "" : inlineHtml(line));
+    i++;
+  }
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+// Режем ИСХОДНЫЙ markdown на блоки ≤limit по пустым строкам — при сплите длинных
+// ответов разметка каждого чанка остаётся целой (post теряет parse_mode на 2-м+
+// чанке ОДНОГО сообщения, поэтому шлём каждый блок отдельным сообщением).
+function chunkMarkdown(md: string, limit = 3500): string[] {
+  if (md.length <= limit) return [md];
+  const chunks: string[] = [];
+  let cur = "";
+  for (const p of md.split(/\n{2,}/)) {
+    if (cur && cur.length + p.length + 2 > limit) { chunks.push(cur); cur = ""; }
+    cur = cur ? `${cur}\n\n${p}` : p;
+    if (cur === p && cur.length > limit) { chunks.push(cur); cur = ""; }
+  }
+  if (cur) chunks.push(cur);
+  return chunks;
+}
+
 export default telegramChannel({
   botUsername: process.env.TELEGRAM_BOT_USERNAME ?? "my_bot",
   uploadPolicy: {
@@ -217,6 +311,20 @@ export default telegramChannel({
     maxBytes: 10 * 1024 * 1024,
   },
   events: {
+    // Ответ модели → красивый Telegram-HTML. Переопределяет дефолтную plain-доставку
+    // eve. Промежуточный текст перед tool-calls не шлём (зеркалим дефолт). На сбой
+    // парсинга у Telegram — fallback на исходный текст, чтобы ответ не потерялся.
+    async "message.completed"(data, channel) {
+      if (data.finishReason === "tool-calls" || !data.message) return;
+      const md = data.message;
+      for (const part of chunkMarkdown(md)) {
+        try {
+          await channel.telegram.post({ text: mdToTelegramHtml(part), parse_mode: "HTML" });
+        } catch {
+          await channel.telegram.post(part);
+        }
+      }
+    },
     // Ход упал (в т.ч. переполнение контекста / HookConflict) — даём пользователю escape.
     async "turn.failed"(_data, channel) {
       try {
