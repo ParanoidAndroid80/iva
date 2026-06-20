@@ -37,7 +37,7 @@ nova-3, `language=multi`) перед попаданием к Iva и записы
 пользователь один раз при первом запуске:
 ```bash
 gh auth login
-gh repo create <user>/eva-vault --private --source="$VAULT_DIR" --remote=origin --push
+gh repo create <user>/iva-vault --private --source="$VAULT_DIR" --remote=origin --push
 ```
 `scripts/memory/doctor.ts` коммитит и пушит память после обработки; если remote/credentials
 не настроены — шлёт в Telegram напоминание выполнить `gh auth login`.

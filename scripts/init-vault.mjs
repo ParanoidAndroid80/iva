@@ -48,7 +48,7 @@ if (!existsSync(resolve(VAULT, ".git"))) {
   console.log(
     "Привяжи приватный remote для бэкапа:\n" +
       "  gh auth login\n" +
-      `  gh repo create <user>/eva-vault --private --source="${VAULT}" --remote=origin --push`,
+      `  gh repo create <user>/iva-vault --private --source="${VAULT}" --remote=origin --push`,
   );
 } else {
   console.log("init-vault: git-репо vault уже есть — пропускаю init.");

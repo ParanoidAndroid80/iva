@@ -439,7 +439,7 @@ echo "    npm run smoke     проверка tool-loop"
 echo
 echo "  ${c_yellow}${c_bold}Vault-бэкап в git${c_reset} (один раз — приватный remote для памяти):"
 echo "    gh auth login"
-echo "    gh repo create <user>/eva-vault --private --source=\"$VAULT_PATH\" --remote=origin --push"
+echo "    gh repo create <user>/iva-vault --private --source=\"$VAULT_PATH\" --remote=origin --push"
 echo
 echo "  ${c_green}${c_bold}✅ Бот отвечает через polling${c_reset} — просто напиши ему в Telegram, без доменов и прокси."
 echo "    Статус бота:  systemctl --user status iva-telegram-poll"
