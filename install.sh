@@ -333,6 +333,19 @@ step "Готовлю live-vault из шаблона…"
 ASSISTANT_VAULT_DIR="$VAULT_DIR_REL" node scripts/init-vault.mjs || warn "init-vault не отработал — проверь vault вручную"
 
 # ─────────────────────────────────────────────────────────────────────────
+# 8.5. Команда `iva` в ~/.local/bin (update/config/doctor/uninstall/...).
+#     Wrapper с зашитыми путями node+проект — работает из любого shell.
+# ─────────────────────────────────────────────────────────────────────────
+step "Ставлю команду iva в ~/.local/bin…"
+mkdir -p "$HOME/.local/bin"
+printf '#!/usr/bin/env bash\nexec "%s" "%s/bin/iva.mjs" "$@"\n' "$(command -v node)" "$PROJECT_DIR" > "$HOME/.local/bin/iva"
+chmod +x "$HOME/.local/bin/iva"
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ok "Команда iva готова — попробуй: iva help" ;;
+  *) warn "Добавь ~/.local/bin в PATH, чтобы звать iva напрямую (или: \$HOME/.local/bin/iva help)" ;;
+esac
+
+# ─────────────────────────────────────────────────────────────────────────
 # 9. systemd: основной сервис + таймеры памяти (Linux). Нужен настроенный .env.
 # ─────────────────────────────────────────────────────────────────────────
 if ! command -v systemctl >/dev/null 2>&1; then
@@ -340,53 +353,12 @@ if ! command -v systemctl >/dev/null 2>&1; then
 elif [ ! -f .env ]; then
   warn "Нет .env — автозапуск не настраиваю. Сначала: npm run setup, потом перезапусти install.sh."
 elif prompt_yes_no "Завести автозапуск через systemd (сервис + таймеры памяти)?" yes; then
-  NODE_BIN="$(command -v node)"
-  UNIT_DIR="$HOME/.config/systemd/user"
-  mkdir -p "$UNIT_DIR"
+  # Запись юнитов делегируем iva CLI — единый источник правды (см. bin/iva.mjs writeUnits).
+  step "Ставлю systemd-юниты (через iva CLI)…"
+  node "$PROJECT_DIR/bin/iva.mjs" _install-units || die "не удалось записать systemd-юниты"
+  poll_installed=1
+  timers_installed=1
 
-  # Основной сервис агента
-  cat > "$UNIT_DIR/iva.service" <<EOF
-[Unit]
-Description=Iva
-After=network-online.target
-
-[Service]
-WorkingDirectory=$PROJECT_DIR
-EnvironmentFile=$PROJECT_DIR/.env
-ExecStart=$NODE_BIN $PROJECT_DIR/.output/server/index.mjs
-Environment=PORT=3000
-Environment=PATH=$NPM_GLOBAL_BIN:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
-Environment=AGENT_BROWSER_MAX_OUTPUT=24000
-Restart=always
-
-[Install]
-WantedBy=default.target
-EOF
-
-  # Таймеры/сервисы памяти из deploy/ с подстановкой плейсхолдеров путей.
-  timers_installed=0
-  if compgen -G "$PROJECT_DIR/deploy/iva-memory-*.service" >/dev/null 2>&1; then
-    step "Устанавливаю таймеры памяти из deploy/…"
-    for f in "$PROJECT_DIR"/deploy/iva-memory-*.service "$PROJECT_DIR"/deploy/iva-memory-*.timer; do
-      [ -e "$f" ] || continue
-      sed -e "s|__PROJECT_DIR__|$PROJECT_DIR|g" \
-          -e "s|__NODE_BIN__|$NODE_BIN|g" \
-          "$f" > "$UNIT_DIR/$(basename "$f")"
-    done
-    timers_installed=1
-  else
-    warn "deploy/iva-memory-*.{service,timer} не найдены — таймеры памяти пропущены"
-  fi
-
-  # Telegram polling-мост (бот отвечает БЕЗ webhook/прокси).
-  poll_installed=0
-  if [ -f "$PROJECT_DIR/deploy/iva-telegram-poll.service" ]; then
-    sed -e "s|__PROJECT_DIR__|$PROJECT_DIR|g" -e "s|__NODE_BIN__|$NODE_BIN|g" \
-        "$PROJECT_DIR/deploy/iva-telegram-poll.service" > "$UNIT_DIR/iva-telegram-poll.service"
-    poll_installed=1
-  fi
-
-  systemctl --user daemon-reload
   systemctl --user enable --now iva.service
   if [ "$poll_installed" -eq 1 ]; then
     systemctl --user enable --now iva-telegram-poll.service \
@@ -431,11 +403,12 @@ if [ "$SETUP_DONE" != true ]; then
   echo "  Затем пересобери и запусти: npm run build && (systemctl --user restart iva)"
   echo
 fi
-echo "  ${c_bold}Команды:${c_reset}"
-echo "    npm start         запуск агента (порт 3000)"
-echo "    npm run dev       локальный TUI-диалог (порт 2000)"
-echo "    npm run setup     мастер настройки (ключи/модель/TZ/vault)"
-echo "    npm run smoke     проверка tool-loop"
+echo "  ${c_bold}Команды (${c_green}iva${c_reset}${c_bold} — из любого места):${c_reset}"
+echo "    iva update        обновить (git pull + сборка + рестарт)"
+echo "    iva config        настройка (модель/Telegram/Deepgram/TZ/vault)"
+echo "    iva doctor        диагностика и авто-починка установки"
+echo "    iva status        статус сервисов и таймеров"
+echo "    iva help          все команды"
 echo
 echo "  ${c_yellow}${c_bold}Vault-бэкап в git${c_reset} (один раз — приватный remote для памяти):"
 echo "    gh auth login"
