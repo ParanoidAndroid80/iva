@@ -245,6 +245,13 @@ if npm i -g agent-browser; then
   step "Скачиваю Chromium + системные библиотеки…"
   agent-browser install --with-deps \
     || warn "agent-browser install --with-deps не прошёл — доставишь позже: agent-browser install --with-deps"
+  # Chrome на Ubuntu 23.10+/24.04 не стартует: ядро запрещает unprivileged user
+  # namespaces (AppArmor) → "No usable sandbox". На Linux включаем --no-sandbox
+  # дефолтом для всех вызовов agent-browser (идемпотентно, не затирая чужой config).
+  if [ "$(uname -s)" = "Linux" ]; then
+    node -e 'const fs=require("fs"),os=require("os"),p=require("path");const d=p.join(os.homedir(),".agent-browser"),f=p.join(d,"config.json");fs.mkdirSync(d,{recursive:true});let c={};try{c=JSON.parse(fs.readFileSync(f,"utf8"))}catch{}const w="--no-sandbox";const cur=typeof c.args=="string"?c.args:Array.isArray(c.args)?c.args.join(","):"";if(!cur.split(/[,\n]/).map(s=>s.trim()).filter(Boolean).includes(w)){c.args=cur?cur+","+w:w;fs.writeFileSync(f,JSON.stringify(c,null,2)+"\n")}' \
+      2>/dev/null || warn "не настроил ~/.agent-browser/config.json — добавь \"args\": \"--no-sandbox\" вручную"
+  fi
   if agent-browser doctor >/dev/null 2>&1; then
     ok "agent-browser готов"
   else
