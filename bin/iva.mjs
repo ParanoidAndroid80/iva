@@ -23,6 +23,10 @@ const childEnv = { ...process.env, PATH: `${NODE_BIN_DIR}:${process.env.PATH || 
 const SERVICES = ["iva.service", "iva-telegram-poll.service"];
 const TIMERS = ["daily", "weekly", "monthly", "yearly", "doctor"].map((n) => `iva-memory-${n}.timer`);
 
+// Непопсовый порт по умолчанию: 3000/8000/8080 на типовом VPS заняты (docker и т.п.).
+// Переопределяется переменной IVA_PORT в .env; от него же зависит дефолтный ASSISTANT_HOST.
+const DEFAULT_PORT = "8723";
+
 const C = { g: "\x1b[32m", y: "\x1b[33m", r: "\x1b[31m", c: "\x1b[36m", b: "\x1b[1m", d: "\x1b[2m", x: "\x1b[0m" };
 const ok = (m) => console.log(`${C.g}✓${C.x} ${m}`);
 const warn = (m) => console.log(`${C.y}!${C.x} ${m}`);
@@ -84,6 +88,7 @@ async function notifyTelegram(text) {
 // ── systemd-юниты: единый источник правды ─────────────────────────────────
 function ivaServiceBody() {
   // Идентично install.sh §9: PATH с каталогом node (= npm global bin при nvm), Restart=always.
+  const port = (readEnv().IVA_PORT || DEFAULT_PORT).trim();
   return [
     "[Unit]",
     "Description=Iva",
@@ -93,7 +98,7 @@ function ivaServiceBody() {
     `WorkingDirectory=${ROOT}`,
     `EnvironmentFile=${ROOT}/.env`,
     `ExecStart=${NODE} ${ROOT}/.output/server/index.mjs`,
-    "Environment=PORT=3000",
+    `Environment=PORT=${port}`,
     `Environment=PATH=${NODE_BIN_DIR}:%h/.local/bin:/usr/local/bin:/usr/bin:/bin`,
     "Environment=AGENT_BROWSER_MAX_OUTPUT=24000",
     "Restart=always",

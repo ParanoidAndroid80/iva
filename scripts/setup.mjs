@@ -307,7 +307,10 @@ async function main() {
   );
   out.ASSISTANT_VAULT_DIR = await ask("  Каталог vault (память + git-бэкап)", out.ASSISTANT_VAULT_DIR || "vault");
   out.ASSISTANT_DATA_DIR = out.ASSISTANT_DATA_DIR || "data";
-  out.ASSISTANT_HOST = out.ASSISTANT_HOST || "http://127.0.0.1:3000";
+  // Непопсовый порт: 3000/8000/8080 на типовом VPS заняты (docker и т.п.). Сервер слушает IVA_PORT,
+  // а клиенты (poll-мост, дайджест, роллапы) ходят на него же через ASSISTANT_HOST.
+  out.IVA_PORT = out.IVA_PORT || "8723";
+  out.ASSISTANT_HOST = out.ASSISTANT_HOST || `http://127.0.0.1:${out.IVA_PORT}`;
 
   // ── Запись .env ───────────────────────────────────────────────────
   const order = [
@@ -318,7 +321,7 @@ async function main() {
     "TELEGRAM_ALLOWED_USER_IDS", "TELEGRAM_DIGEST_CHAT_ID",
     "DEEPGRAM_API_KEY", "DEEPGRAM_LANGUAGE",
     "ASSISTANT_TIMEZONE", "ASSISTANT_VAULT_DIR",
-    "ASSISTANT_DATA_DIR", "ASSISTANT_HOST", "ASSISTANT_BEARER",
+    "ASSISTANT_DATA_DIR", "IVA_PORT", "ASSISTANT_HOST", "ASSISTANT_BEARER",
   ];
   const keys = [...order.filter((k) => out[k] != null), ...Object.keys(out).filter((k) => !order.includes(k))];
   const body = keys.map((k) => `${k}=${out[k]}`).join("\n") + "\n";
