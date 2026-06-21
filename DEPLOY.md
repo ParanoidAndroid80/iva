@@ -58,7 +58,8 @@ npm run dev            # интерактивный TUI (eve dev), сервер 
 ```bash
 npm ci
 npm exec -- eve build         # → ./.output
-node .output/server/index.mjs # или npm start (eve start); порт через PORT (по умолчанию IVA_PORT=8723)
+node .output/server/index.mjs # или npm start (eve start); порт через PORT/NITRO_PORT (дефолт Nitro 3000)
+                              # 8723 задаёт не сервер, а юнит/.env от iva (PORT=$IVA_PORT)
 ```
 Запускай под process-manager (systemd/pm2) с подгрузкой `.env`. Пример systemd-юнита:
 ```ini
