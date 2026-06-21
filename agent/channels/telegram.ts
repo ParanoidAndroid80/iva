@@ -1,4 +1,4 @@
-import { telegramChannel } from "eve/channels/telegram";
+import { telegramChannel, type TelegramMessageBody } from "eve/channels/telegram";
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -319,7 +319,13 @@ export default telegramChannel({
       const md = data.message;
       for (const part of chunkMarkdown(md)) {
         try {
-          await channel.telegram.post({ text: mdToTelegramHtml(part), parse_mode: "HTML" });
+          // eve's TelegramMessageBody type omits parse_mode, но рантайм
+          // (normalizeTelegramMessageBody) спредит тело прямо в sendMessage —
+          // поле доходит до Telegram, и от него зависит наш HTML-рендер. Расширяем тип локально.
+          await channel.telegram.post({
+            text: mdToTelegramHtml(part),
+            parse_mode: "HTML",
+          } as TelegramMessageBody & { parse_mode: "HTML" });
         } catch {
           await channel.telegram.post(part);
         }
