@@ -5,6 +5,7 @@
 //
 // Требует: запущенный агент (eve start) и переменные TELEGRAM_BOT_TOKEN, TELEGRAM_DIGEST_CHAT_ID.
 import { Client } from "eve/client";
+import { sendTelegramHtml } from "./lib/telegram-send.mjs";
 
 const PORT = process.env.IVA_PORT ?? "8723";
 const HOST = process.env.ASSISTANT_HOST ?? `http://127.0.0.1:${PORT}`;
@@ -36,14 +37,16 @@ if (result.status === "failed" || !result.message) {
   process.exit(1);
 }
 
-const res = await fetch(`https://api.telegram.org/bot${BOT}/sendMessage`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ chat_id: CHAT, text: result.message }),
-});
-
-if (!res.ok) {
-  console.error("Telegram sendMessage failed:", res.status, await res.text());
+// Конвертация markdown → Telegram-HTML + self-heal живут в общем хелпере.
+const r = await sendTelegramHtml(BOT, CHAT, result.message);
+if (r.fellBack) {
+  await session.send(
+    `Прошлый дайджест не прошёл Telegram parse_mode=HTML (${r.error}), ушёл плоским текстом — ` +
+      "форматируй проще в следующий раз: **жирный**, `код`, списки, без сырого HTML.",
+  );
+}
+if (!r.ok) {
+  console.error("digest: Telegram send failed:", r.error);
   process.exit(1);
 }
 console.log("Дайджест отправлен в Telegram.");

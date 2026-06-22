@@ -5,9 +5,10 @@ import { join } from "node:path";
 // Двусторонний транскрипт: финальный ответ Iva дозаписывается в ТОТ ЖЕ дневной файл
 // vault, что и реплики юзера (agent/channels/telegram.ts).
 //
-// САМОДОСТАТОЧНО: только eve/hooks + node-builtins. Хелпер appendDaily намеренно
-// продублирован из telegram.ts — общий модуль НЕ выносим (cross-authored относительный
-// импорт ломает `eve dev` 0.11.4). Формат d_brain: `## HH:MM [type]` + контент.
+// Хелпер appendDaily намеренно продублирован из telegram.ts — выносить в общий модуль
+// не стали из-за тривиальности (пара fs-вызовов), а НЕ из-за бандла: относительный
+// импорт из scripts/lib в бандл работает (см. scripts/lib/telegram-format.mjs, который
+// импортируется в telegram.ts). Формат d_brain: `## HH:MM [type]` + контент.
 function appendDaily(type: string, content: string): void {
   const tz = process.env.ASSISTANT_TIMEZONE || undefined;
   const now = new Date();

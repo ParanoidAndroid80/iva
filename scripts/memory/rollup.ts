@@ -7,6 +7,7 @@
 // Требует: запущенный агент (eve start) и vault с правилами обработки
 // (vault/.claude/rules/*-format.md + skills/dbrain-processor). Дата — в ASSISTANT_TIMEZONE.
 import { Client } from "eve/client";
+import { sendTelegramHtml } from "../lib/telegram-send.mjs";
 
 type Period = "daily" | "weekly" | "monthly" | "yearly";
 
@@ -138,13 +139,18 @@ if (POST_TO_TELEGRAM[period]) {
     );
     process.exit(1);
   }
-  const res = await fetch(`https://api.telegram.org/bot${BOT}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: CHAT, text: result.message }),
-  });
-  if (!res.ok) {
-    console.error("Telegram sendMessage failed:", res.status, await res.text());
+  // Конвертация markdown → Telegram-HTML + self-heal живут в общем хелпере.
+  const r = await sendTelegramHtml(BOT, CHAT, result.message);
+  if (r.fellBack) {
+    // HTML не распарсился — отчёт ушёл плоским. Даём агенту обратную связь в ту же
+    // сессию, чтобы следующий отчёт он отформатировал проще (один ход, без переотправки).
+    await session.send(
+      `Прошлый отчёт не прошёл Telegram parse_mode=HTML (${r.error}) и ушёл плоским текстом. ` +
+        "В следующий раз форматируй проще: **жирный**, `код`, списки — без сырого HTML.",
+    );
+  }
+  if (!r.ok) {
+    console.error(`rollup ${period}: Telegram send failed:`, r.error);
     process.exit(1);
   }
   console.log(`rollup ${period}: отчёт отправлен в Telegram.`);
