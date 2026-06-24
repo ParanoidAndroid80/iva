@@ -60,6 +60,14 @@ async function pickPort(def) {
     }
     const { occupied, holders } = await checker.check(port);
     if (!occupied) return String(port);
+    // Перенастройка при живом Iva: текущий (неизменённый) порт читается как «занят» —
+    // его держит СОБСТВЕННЫЙ сервер Iva. Не предлагаем переезд: это увело бы IVA_PORT от
+    // клиентов (мост/cron на ASSISTANT_HOST) → бот бы онемел. Оставляем порт как есть.
+    // ponytail: допускаем, что держатель неизменённого порта — наш сервер (типовой кейс).
+    if (port === Number(def)) {
+      console.log(`  ${C.y}${t(`Port ${port} is busy — looks like Iva itself (the running server). Keeping it.`, `Порт ${port} занят — похоже, это сам Iva (текущий сервер). Оставляю.`)}${C.x}`);
+      return String(port);
+    }
     const free = await new PortSelector(checker).firstFree(port + 1);
     const who = holders.length ? ` (${holders.join("; ")})` : "";
     console.log(`  ${C.y}${t(`Port ${port} is busy${who}.`, `Порт ${port} занят${who}.`)}${C.x}${free ? ` ${t("Nearest free", "Ближайший свободный")}: ${C.g}${free}${C.x}.` : ""}`);
@@ -409,7 +417,11 @@ async function main() {
   // listens on IVA_PORT and clients (poll bridge, digest, rollups) reach it via ASSISTANT_HOST. We check
   // the chosen port is free — otherwise the server would die with EADDRINUSE (silent exit → bot is mute).
   out.IVA_PORT = await pickPort(out.IVA_PORT || "8723");
-  out.ASSISTANT_HOST = out.ASSISTANT_HOST || `http://127.0.0.1:${out.IVA_PORT}`;
+  // ASSISTANT_HOST для локалхоста ОБЯЗАН следовать за IVA_PORT: иначе смена порта здесь
+  // оставит мост/cron-клиентов на старом порту (сервер переехал, клиенты — нет) → бот
+  // немеет. Кастомный не-localhost host (удалённый сервер) сохраняем как есть.
+  const localHost = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/i.test(out.ASSISTANT_HOST || "");
+  out.ASSISTANT_HOST = !out.ASSISTANT_HOST || localHost ? `http://127.0.0.1:${out.IVA_PORT}` : out.ASSISTANT_HOST;
 
   // ── Write .env ────────────────────────────────────────────────────
   await writeEnv(out);
