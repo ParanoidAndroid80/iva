@@ -205,9 +205,10 @@ async function transcribe(audio: ArrayBuffer): Promise<string> {
   return json.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? "";
 }
 
-// Медиа, которые eve НЕ парсит в attachments (только photo/document) — берём из raw.
-// key — поле raw; tag — метка [type] в daily и префикс контекста; transcribe — слать ли в
-// Deepgram (анимации/стикеры без речи — нет, только сохраняем оригинал).
+// Все типы, несущие файл. eve со своим инлайном/песочницей мы НЕ используем (uploadPolicy
+// "disabled") — iva сама качает из raw, кладёт в vault и даёт модели ПУТЬ (не сам файл).
+// key — поле raw; tag — метка [type] в daily/контексте; transcribe — гнать ли в Deepgram
+// (речь есть только у голоса/аудио/видео). photo — массив размеров, обрабатывается отдельно.
 const RAW_MEDIA: ReadonlyArray<{ key: string; tag: string; transcribe: boolean }> = [
   { key: "voice", tag: "voice", transcribe: true },
   { key: "audio", tag: "audio", transcribe: true },
@@ -215,54 +216,20 @@ const RAW_MEDIA: ReadonlyArray<{ key: string; tag: string; transcribe: boolean }
   { key: "video_note", tag: "video", transcribe: true },
   { key: "animation", tag: "animation", transcribe: false },
   { key: "sticker", tag: "sticker", transcribe: false },
+  { key: "document", tag: "document", transcribe: false },
 ];
-
-// Telegram file-CDN отдаёт фото/файлы с Content-Type: application/octet-stream. eve берёт
-// mediaType вложения из этого заголовка → картинка не распознаётся как image/* и НЕ инлайнится
-// в vision-модель (а при узкой uploadPolicy роняла весь ход). Публичного override fetchFile у
-// канала нет, но скачивание файла идёт через api.fetch — перехватываем ответ file-эндпоинта и
-// выставляем реальный тип по magic-bytes. Прочие вызовы Bot API проходят насквозь.
-function sniffMediaType(b: Uint8Array): string | undefined {
-  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
-  if (b.length >= 4 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return "image/png";
-  if (b.length >= 3 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return "image/gif";
-  if (
-    b.length >= 12 &&
-    b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
-    b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50
-  )
-    return "image/webp";
-  if (b.length >= 4 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return "application/pdf";
-  return undefined;
-}
-
-const telegramFetch: typeof fetch = async (input, init) => {
-  const res = await fetch(input, init);
-  const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
-  if (!/\/file\/bot[^/]+\//.test(url)) return res;
-  const ct = res.headers.get("content-type") ?? "";
-  if (ct && ct !== "application/octet-stream") return res;
-  const ab = await res.arrayBuffer();
-  const sniffed = sniffMediaType(new Uint8Array(ab.slice(0, 16)));
-  const headers = new Headers(res.headers);
-  if (sniffed) headers.set("content-type", sniffed);
-  return new Response(ab, { status: res.status, statusText: res.statusText, headers });
-};
 
 // Markdown → Telegram HTML и нарезка на чанки — в общем модуле
 // scripts/lib/telegram-format.mjs (тот же конвертер использует cron). Импорт выше.
 
 export default telegramChannel({
   botUsername: process.env.TELEGRAM_BOT_USERNAME ?? "my_bot",
-  // Исправляем octet-stream от Telegram на реальный тип — иначе картинка не доходит до vision.
-  api: { fetch: telegramFetch },
-  // "*": не роняем ход ни на каком типе. Картинки/pdf eve инлайнит модели нативно (после
-  // починки content-type выше), прочее становится безвредным текст-рефом, а оригинал всё равно
-  // кладём в vault сами (ниже). maxBytes = потолок Bot API (>20MB ботам не отдаётся).
-  uploadPolicy: {
-    allowedMediaTypes: "*",
-    maxBytes: 20 * 1024 * 1024,
-  },
+  // Картинку/файл НЕ суём в запрос к модели (это и ломалось: octet-stream → reject, потом
+  // инлайн → Bad Request от провайдера, плюс привязка к конкретному vision-API). "disabled" →
+  // eve не качает и не инлайнит вложения вовсе; запрос к модели всегда чистый текст и не
+  // ломается ни на каком провайдере. Файлы качает и сохраняет iva сама (ниже), а модели отдаёт
+  // ПУТЬ — посмотреть/прочитать она решает сама своими инструментами; не умеет — честно скажет.
+  uploadPolicy: "disabled",
   events: {
     // Ответ модели → красивый Telegram-HTML. Переопределяет дефолтную plain-доставку
     // eve. Промежуточный текст перед tool-calls не шлём (зеркалим дефолт). Конвертер
@@ -354,22 +321,30 @@ export default telegramChannel({
       // прочие команды — пусть отвечает модель обычным ходом (fall through)
     }
 
-    // 2. Сырое медиа (голос/аудио/видео/кружок/анимация/стикер) — eve не парсит их в attachments.
+    // 2. Любой присланный файл (фото/документ/голос/аудио/видео/кружок/анимация/стикер).
+    // uploadPolicy "disabled" → message.attachments пуст; берём ВСЁ из raw сами.
     const raw = message.raw as Record<string, any>;
     let media:
       | { fileId: string; tag: string; transcribe: boolean; mimeType?: string; fileName?: string }
       | null = null;
-    for (const m of RAW_MEDIA) {
-      const obj = raw[m.key] as { file_id?: string; mime_type?: string; file_name?: string } | undefined;
-      if (obj && typeof obj.file_id === "string") {
-        media = {
-          fileId: obj.file_id,
-          tag: m.tag,
-          transcribe: m.transcribe,
-          mimeType: obj.mime_type,
-          fileName: obj.file_name,
-        };
-        break;
+    if (Array.isArray(raw.photo) && raw.photo.length > 0) {
+      // photo — массив размеров по возрастанию; берём самый крупный (последний).
+      const p = raw.photo[raw.photo.length - 1];
+      if (p?.file_id) media = { fileId: p.file_id, tag: "photo", transcribe: false };
+    }
+    if (!media) {
+      for (const m of RAW_MEDIA) {
+        const obj = raw[m.key] as { file_id?: string; mime_type?: string; file_name?: string } | undefined;
+        if (obj && typeof obj.file_id === "string") {
+          media = {
+            fileId: obj.file_id,
+            tag: m.tag,
+            transcribe: m.transcribe,
+            mimeType: obj.mime_type,
+            fileName: obj.file_name,
+          };
+          break;
+        }
       }
     }
 
@@ -412,10 +387,20 @@ export default telegramChannel({
         }
         appendDaily(tag, transcript ? `![[${rel}]]\n\n${transcript}${capSuffix}` : `![[${rel}]]${capSuffix}`);
 
-        // Ход модели запускаем только если есть что обсуждать (транскрипт/подпись). Немой
-        // стикер/GIF без подписи — сохранили и в лог, без спама ответом.
-        if (!transcript && !caption) return null;
-        const parts = [`${tag} сохранён: ${rel}`];
+        // Немой стикер/анимация без подписи — сохранили в лог, без спама ответом.
+        if ((media.tag === "sticker" || media.tag === "animation") && !transcript && !caption) return null;
+
+        // Модели даём ПУТЬ к файлу, а не сам файл — смотрит/читает сама своими инструментами.
+        const path = `${process.env.ASSISTANT_VAULT_DIR || "vault"}/${rel}`;
+        const isImage = media.tag === "photo" || media.tag === "sticker" || media.tag === "animation";
+        const hint = transcript
+          ? `${tag} сохранено: ${path}`
+          : isImage
+            ? `${tag} пользователь прислал изображение: ${path}. Посмотри его (если умеешь анализировать ` +
+              `изображения — своими инструментами/скиллами) и ответь по содержимому; не можешь — так и скажи.`
+            : `${tag} пользователь прислал файл: ${path}. Открой/прочитай его (read_file, bash, скиллы ` +
+              `pdf/xlsx/docx) и ответь по содержимому.`;
+        const parts = [hint];
         if (transcript) parts.push(`${tag} ${transcript}`);
         if (caption) parts.push(caption);
         return { auth: buildAuth(message), context: parts };
@@ -448,51 +433,10 @@ export default telegramChannel({
       if (!(message.text || "").trim()) return null; // нет текста — только лог, без ответа
     }
 
-    // 3. Штатное гейтирование диспатча (текст/фото/документы; в группе — только обращённое к боту).
+    // 3. Штатное гейтирование диспатча (текст; в группе — только обращённое к боту).
     if (!shouldDispatch(message, ctx.telegram.botUsername)) return null;
 
-    // 4. Файловые вложения → блоб в vault/attachments + ссылка в daily + путь Iva.
-    if (message.attachments.length > 0) {
-      await ctx.telegram.startTyping();
-      const stamp = localStamp();
-      const cap = (message.caption || "").trim();
-      const capSuffix = cap ? `\n\n${cap}` : "";
-      const saved: string[] = [];
-      for (const att of message.attachments) {
-        const label = `[${att.kind}]`;
-        const named = att.fileName ? ` ${att.fileName}` : "";
-        try {
-          const f = await fetchTelegramFile(
-            (m, b) => ctx.telegram.request(m, b),
-            att.fileId,
-          );
-          if (!f) {
-            appendDaily(label, `(не удалось скачать файл${named})${capSuffix}`);
-          } else if ("tooBig" in f) {
-            appendDaily(label, `(файл >20MB — Telegram не отдаёт ботам${named})${capSuffix}`);
-          } else {
-            const rel = saveBlob(f.bytes, att.fileName, att.kind, att.mediaType, stamp);
-            saved.push(rel);
-            // Obsidian-embed: ссылка на сохранённый блоб + подпись.
-            appendDaily(label, `![[${rel}]]${capSuffix}`);
-          }
-        } catch {
-          appendDaily(label, `(ошибка обработки файла${named})${capSuffix}`);
-        }
-      }
-      const text = (message.text || "").trim();
-      if (text) appendDaily("[text]", text);
-
-      const vaultDir = process.env.ASSISTANT_VAULT_DIR || "vault";
-      const note = saved.length
-        ? `Пользователь прислал файл(ы): ${saved.join(", ")} (в ${vaultDir}). ` +
-          `Изображения и PDF доступны тебе нативно; для docx/прочих форматов извлеки текст через ` +
-          `bash (напр. pandoc/pdftotext) по сохранённому пути. Сохрани суть в память по правилам vault.`
-        : "";
-      return { auth: buildAuth(message), ...(note ? { context: [note] } : {}) };
-    }
-
-    // 5. Текстовая реплика юзера → daily.
+    // 4. Текстовая реплика юзера → daily.
     const userText = (message.text || "").trim();
     if (userText) appendDaily("[text]", userText);
 
