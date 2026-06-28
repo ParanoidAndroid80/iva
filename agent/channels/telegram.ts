@@ -205,24 +205,63 @@ async function transcribe(audio: ArrayBuffer): Promise<string> {
   return json.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? "";
 }
 
-// Голос/видео eve НЕ парсит как attachments (только photo/document) — берём из raw.
-// Метка определяет и префикс контекста, и [type] в daily.
-const MEDIA_KINDS: ReadonlyArray<readonly [string, "voice" | "video"]> = [
-  ["voice", "voice"],
-  ["audio", "voice"],
-  ["video", "video"],
-  ["video_note", "video"],
-  ["animation", "video"],
+// Медиа, которые eve НЕ парсит в attachments (только photo/document) — берём из raw.
+// key — поле raw; tag — метка [type] в daily и префикс контекста; transcribe — слать ли в
+// Deepgram (анимации/стикеры без речи — нет, только сохраняем оригинал).
+const RAW_MEDIA: ReadonlyArray<{ key: string; tag: string; transcribe: boolean }> = [
+  { key: "voice", tag: "voice", transcribe: true },
+  { key: "audio", tag: "audio", transcribe: true },
+  { key: "video", tag: "video", transcribe: true },
+  { key: "video_note", tag: "video", transcribe: true },
+  { key: "animation", tag: "animation", transcribe: false },
+  { key: "sticker", tag: "sticker", transcribe: false },
 ];
+
+// Telegram file-CDN отдаёт фото/файлы с Content-Type: application/octet-stream. eve берёт
+// mediaType вложения из этого заголовка → картинка не распознаётся как image/* и НЕ инлайнится
+// в vision-модель (а при узкой uploadPolicy роняла весь ход). Публичного override fetchFile у
+// канала нет, но скачивание файла идёт через api.fetch — перехватываем ответ file-эндпоинта и
+// выставляем реальный тип по magic-bytes. Прочие вызовы Bot API проходят насквозь.
+function sniffMediaType(b: Uint8Array): string | undefined {
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
+  if (b.length >= 4 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return "image/png";
+  if (b.length >= 3 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return "image/gif";
+  if (
+    b.length >= 12 &&
+    b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+    b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50
+  )
+    return "image/webp";
+  if (b.length >= 4 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return "application/pdf";
+  return undefined;
+}
+
+const telegramFetch: typeof fetch = async (input, init) => {
+  const res = await fetch(input, init);
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
+  if (!/\/file\/bot[^/]+\//.test(url)) return res;
+  const ct = res.headers.get("content-type") ?? "";
+  if (ct && ct !== "application/octet-stream") return res;
+  const ab = await res.arrayBuffer();
+  const sniffed = sniffMediaType(new Uint8Array(ab.slice(0, 16)));
+  const headers = new Headers(res.headers);
+  if (sniffed) headers.set("content-type", sniffed);
+  return new Response(ab, { status: res.status, statusText: res.statusText, headers });
+};
 
 // Markdown → Telegram HTML и нарезка на чанки — в общем модуле
 // scripts/lib/telegram-format.mjs (тот же конвертер использует cron). Импорт выше.
 
 export default telegramChannel({
   botUsername: process.env.TELEGRAM_BOT_USERNAME ?? "my_bot",
+  // Исправляем octet-stream от Telegram на реальный тип — иначе картинка не доходит до vision.
+  api: { fetch: telegramFetch },
+  // "*": не роняем ход ни на каком типе. Картинки/pdf eve инлайнит модели нативно (после
+  // починки content-type выше), прочее становится безвредным текст-рефом, а оригинал всё равно
+  // кладём в vault сами (ниже). maxBytes = потолок Bot API (>20MB ботам не отдаётся).
   uploadPolicy: {
-    allowedMediaTypes: ["image/*", "application/pdf"],
-    maxBytes: 10 * 1024 * 1024,
+    allowedMediaTypes: "*",
+    maxBytes: 20 * 1024 * 1024,
   },
   events: {
     // Ответ модели → красивый Telegram-HTML. Переопределяет дефолтную plain-доставку
@@ -315,13 +354,21 @@ export default telegramChannel({
       // прочие команды — пусть отвечает модель обычным ходом (fall through)
     }
 
-    // 2. Голос/видео → Deepgram. Берём file_id из raw (eve их не парсит в attachments).
-    const raw = message.raw as Record<string, { file_id?: string } | undefined>;
-    let media: { fileId: string; label: "voice" | "video" } | null = null;
-    for (const [key, label] of MEDIA_KINDS) {
-      const obj = raw[key];
+    // 2. Сырое медиа (голос/аудио/видео/кружок/анимация/стикер) — eve не парсит их в attachments.
+    const raw = message.raw as Record<string, any>;
+    let media:
+      | { fileId: string; tag: string; transcribe: boolean; mimeType?: string; fileName?: string }
+      | null = null;
+    for (const m of RAW_MEDIA) {
+      const obj = raw[m.key] as { file_id?: string; mime_type?: string; file_name?: string } | undefined;
       if (obj && typeof obj.file_id === "string") {
-        media = { fileId: obj.file_id, label };
+        media = {
+          fileId: obj.file_id,
+          tag: m.tag,
+          transcribe: m.transcribe,
+          mimeType: obj.mime_type,
+          fileName: obj.file_name,
+        };
         break;
       }
     }
@@ -329,16 +376,16 @@ export default telegramChannel({
     if (media) {
       // Гейтим медиа как обычный диспатч (в группе — только обращённое к боту).
       if (!shouldDispatchMedia(message, ctx.telegram.botUsername)) return null;
-      const tag = `[${media.label}]`;
+      const tag = `[${media.tag}]`;
       const caption = (message.caption || "").trim();
+      const capSuffix = caption ? `\n\n${caption}` : "";
       await ctx.telegram.startTyping();
       try {
         // getFile → скачивание байтов через тот же хелпер, что у вложений (DRY).
         const f = await fetchTelegramFile((m, b) => ctx.telegram.request(m, b), media.fileId);
         if (f && "tooBig" in f) {
           // >20MB Bot API ботам не отдаёт: фиксируем факт + подпись, отвечаем юзеру, дропаем апдейт.
-          const note = `(файл >20MB — Telegram не отдаёт его ботам)${caption ? `\n\n${caption}` : ""}`;
-          appendDaily(tag, note);
+          appendDaily(tag, `(файл >20MB — Telegram не отдаёт его ботам)${capSuffix}`);
           try {
             await ctx.telegram.sendMessage(
               "Файл больше 20 МБ — Telegram не отдаёт такие ботам. " +
@@ -352,19 +399,26 @@ export default telegramChannel({
         // null = getFile без file_path (не too-big) либо скачивание !ok — общий диагностический фолбэк.
         if (!f) throw new Error("getFile/скачивание не удалось");
 
-        const transcript = (await transcribe(f.bytes)).trim();
-        if (!transcript) {
+        // Сохраняем оригинал ВСЕГДА (буквально всё + оригиналы), потом транскрипт где есть речь.
+        const stamp = localStamp();
+        const rel = saveBlob(f.bytes, media.fileName, media.tag, media.mimeType, stamp);
+        let transcript = "";
+        if (media.transcribe) {
           try {
-            await ctx.telegram.sendMessage("Не удалось распознать запись — пусто.");
-          } catch {
-            /* молча игнорируем сбой ответа */
+            transcript = (await transcribe(f.bytes)).trim();
+          } catch (e) {
+            console.error("[telegram] Deepgram упал, оставляю только файл:", e);
           }
-          return null;
         }
+        appendDaily(tag, transcript ? `![[${rel}]]\n\n${transcript}${capSuffix}` : `![[${rel}]]${capSuffix}`);
 
-        // Сырой транскрипт юзера → daily; расшифровка долетает до Iva через context[].
-        appendDaily(tag, transcript);
-        return { auth: buildAuth(message), context: [`${tag} ${transcript}`] };
+        // Ход модели запускаем только если есть что обсуждать (транскрипт/подпись). Немой
+        // стикер/GIF без подписи — сохранили и в лог, без спама ответом.
+        if (!transcript && !caption) return null;
+        const parts = [`${tag} сохранён: ${rel}`];
+        if (transcript) parts.push(`${tag} ${transcript}`);
+        if (caption) parts.push(caption);
+        return { auth: buildAuth(message), context: parts };
       } catch (err) {
         try {
           await ctx.telegram.sendMessage(
@@ -375,6 +429,23 @@ export default telegramChannel({
         }
         return null;
       }
+    }
+
+    // 2b. Не-файловые типы (локация/контакт/опрос) — буквально всё фиксируем в логе дня.
+    // Это чистые данные, файла нет; скачивать нечего, отдельный ход без текста не нужен.
+    const nonFile = raw.location
+      ? `[location]\t${raw.location.latitude}, ${raw.location.longitude}`
+      : raw.contact
+        ? `[contact]\t${[raw.contact.first_name, raw.contact.last_name, raw.contact.phone_number]
+            .filter(Boolean)
+            .join(" ")}`
+        : raw.poll
+          ? `[poll]\t${raw.poll.question}`
+          : null;
+    if (nonFile) {
+      const [head, body] = nonFile.split("\t");
+      appendDaily(head, body);
+      if (!(message.text || "").trim()) return null; // нет текста — только лог, без ответа
     }
 
     // 3. Штатное гейтирование диспатча (текст/фото/документы; в группе — только обращённое к боту).
