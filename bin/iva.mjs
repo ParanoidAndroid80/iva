@@ -89,7 +89,7 @@ async function notifyTelegram(text) {
 
 // ── systemd units: single source of truth ─────────────────────────────────
 function ivaServiceBody() {
-  // Identical to install.sh §9: PATH with the node directory (= npm global bin under nvm), Restart=always.
+  // PATH with the node directory (= npm global bin under nvm), Restart=always.
   const port = (readEnv().IVA_PORT || DEFAULT_PORT).trim();
   return [
     "[Unit]",
@@ -99,7 +99,12 @@ function ivaServiceBody() {
     "[Service]",
     `WorkingDirectory=${ROOT}`,
     `EnvironmentFile=${ROOT}/.env`,
-    `ExecStart=${NODE} ${ROOT}/.output/server/index.mjs`,
+    // Стартуем через `eve start`, а НЕ напрямую `node .output/server/index.mjs`: eve start
+    // вызывает prewarmBuiltAppSandboxes() и собирает шаблон песочницы ДО приёма трафика. Сырой
+    // index.mjs prewarm не делает → первое же вложение падает SandboxTemplateNotProvisionedError
+    // (шаблона нет в .eve/sandbox-cache). Ключ шаблона — контент-хеш, после iva update он меняется,
+    // поэтому provision обязан идти на каждом старте, а не разово. eve start остаётся foreground.
+    `ExecStart=${NODE} ${ROOT}/node_modules/eve/bin/eve.js start`,
     `Environment=PORT=${port}`,
     `Environment=PATH=${NODE_BIN_DIR}:%h/.local/bin:/usr/local/bin:/usr/bin:/bin`,
     "Environment=AGENT_BROWSER_MAX_OUTPUT=24000",
