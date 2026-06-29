@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.7] - 2026-06-29
+
+Feature: Iva sees images, takes any attachment, and learns your corrections — plus the stability fixes that make all of it reliable.
+
+- 👁️ **Iva sees images** — the main model (DeepSeek) is text-only, so an incoming picture used to be saved but never understood. Now every still image (photo, sticker, image document) is described by the provider's own vision model on the **same key** — `gemma3:12b` on Ollama, `gemini-3-flash` on OpenCode — with OCR of any text in the frame. The description is written into the day's memory and handed to the main model, so Iva answers by what's actually in the image. No extra subscription, no config; without a key the turn just continues without vision.
+- 📎 **Any attachment, never a crash** — forwarding a photo or file used to kill the whole turn (Telegram serves files as `application/octet-stream`, which failed the upload policy with a fatal throw). Now every attachment type — photos, stickers, voice, video, and documents of any format — reaches the handler, and the model is always handed a **file path** rather than an inlined blob. Provider-agnostic and crash-proof: a bad media type can no longer take down the conversation.
+- 🧠 **Learns your corrections** — the nightly rollup now scans the day for repeatable "do it this way" lessons and records them into CORE, which is read on every turn. A correction you make today is followed tomorrow — a procedural-memory loop with no new moving parts.
+- 🌍 **English-first terminal** — the CLI (`iva update/doctor/status/config`) and every background job (poll bridge, memory rollup/doctor, daily digest) now print in English instead of mixed Russian. The installer stays bilingual and asks your language once.
+- 🌳 **A new tree** — the ANSI willow is now a compact relay tree that shimmers in place while idle.
+
+Stability — the fixes that make images and attachments dependable:
+
+- 🩹 **A poisoned chat can't go silent anymore** — a malformed reasoning part from the provider could fail the model-message schema and wedge a whole thread until a manual restart. Reasoning is now stripped from the model's output before it's stored, so it can't poison the history; and deterministic errors (bad prompt, unknown tool) park the turn cleanly instead of burning three pointless retries.
+- 🩹 **Attachments stop crashing the sandbox** — Iva now pins the lightweight `just-bash` sandbox (eve used to auto-pick Docker on any host with a daemon and then fail to provision it) and starts via `eve start`, so the sandbox template is actually built on every boot. Staging an image or file no longer throws.
+- 🩹 **Updates survive a rewritten history** — `iva update` and the installer used `git pull --ff-only`, which aborted whenever `main` was force-pushed. They now fast-forward when possible and hard-reset to the remote on divergence, preserving your `.env` and vault.
+- 🩹 **Vault wires itself** — `iva doctor` now creates the private `iva-vault` repo over `gh` itself instead of nagging every night, and only warns when `gh` is genuinely unavailable.
+
+[0.1.7]: https://github.com/smixs/iva/releases/tag/v0.1.7
+
 ## [0.1.6] - 2026-06-24
 
 Patch: usage reports in English.
