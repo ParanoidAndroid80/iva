@@ -21,19 +21,21 @@
     "poll": "node --env-file=.env scripts/telegram-poll.mjs",
     "memory": "node --env-file=.env scripts/memory/rollup.ts",
     "doctor": "node --env-file=.env scripts/memory/doctor.ts",
-    "typecheck": "tsgo"
+    "typecheck": "tsgo",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.0-beta.57",
     "@vercel/connect": "0.2.2",
     "ai": "7.0.0-beta.178",
-    "eve": "^0.11.4",
+    "eve": "0.11.4",
     "just-bash": "^3.0.0",
     "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/node": "24.x",
-    "@typescript/native-preview": "7.0.0-dev.20260523.1"
+    "@typescript/native-preview": "7.0.0-dev.20260523.1",
+    "patch-package": "^8.0.1"
   },
   "overrides": {
     "ai": "7.0.0-beta.178"
