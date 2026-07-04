@@ -2,9 +2,9 @@
 
 **English | [Русский](README.ru.md)**
 
-<img src="assets/iva-header.webp" alt="Iva — a personal AI agent with long-term memory" width="100%">
+<img src="assets/iva-header.webp" alt="Iva — a personal assistant in Telegram that remembers everything" width="100%">
 
-**A personal AI agent with long-term memory. One command installs it on a $4 server, and it remembers everything about you.**
+**A personal assistant in Telegram that remembers everything.** Throw it voice notes, files, forwarded posts, videos — it reads them itself, files them, and links them together. One command puts it on your own server. You talk, it files.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/smixs/iva/main/install.sh | bash
