@@ -366,6 +366,11 @@ function cmdDoctor() {
     if (!(env[skey] || "").trim())
       (warn(`web_search: SEARCH_PROVIDER=${sp}, but ${skey} is not set — search won't work (iva config)`), warnN++);
     else (ok(`web_search: ${sp}`), okN++);
+    // memory_search: hybrid mode needs one embedding key; base (grep) needs nothing.
+    const mmode = (env.MEMORY_SEARCH_MODE || "grep").trim().toLowerCase();
+    if (mmode === "hybrid" && !(env.JINA_API_KEY || env.DEEPINFRA_API_KEY || "").trim())
+      (warn("memory_search: MEMORY_SEARCH_MODE=hybrid but no JINA_API_KEY/DEEPINFRA_API_KEY — falls back to BM25"), warnN++);
+    else (ok(`memory_search: ${mmode}`), okN++);
   }
 
   // 3. Build

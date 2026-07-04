@@ -132,6 +132,7 @@ async function writeEnv(out) {
     "DEEPGRAM_API_KEY", "DEEPGRAM_LANGUAGE",
     "SEARCH_PROVIDER",
     "TAVILY_API_KEY", "BRAVE_API_KEY", "EXA_API_KEY", "PARALLEL_API_KEY",
+    "MEMORY_SEARCH_MODE", "JINA_API_KEY", "DEEPINFRA_API_KEY",
     "ASSISTANT_TIMEZONE", "ASSISTANT_VAULT_DIR",
     "ASSISTANT_DATA_DIR", "IVA_PORT", "ASSISTANT_HOST", "ASSISTANT_BEARER",
   ];
@@ -339,6 +340,36 @@ async function main() {
   let kv = await ask(`  ${sprov.id} API key`, keyExisting ? mask(keyExisting) : "");
   if (keyExisting && (!kv || kv.endsWith(KEEP()))) kv = keyExisting;
   out[sprov.key] = (kv || "").trim();
+
+  // ── Enhanced memory (optional hybrid plugin) ──────────────────────
+  // База (BM25 + граф связей) уже включена всегда, бесплатно, без ключа. Здесь — только
+  // opt-in на семантический hybrid, который стоит внешнего ключа.
+  console.log(`\n  ${t("Enhanced memory (hybrid search) — optional", "Улучшенная память (hybrid-поиск) — по желанию")}`);
+  console.log(
+    `  ${C.y}${t(
+      "Base search (BM25 + link graph) is already on — free, no key. Hybrid adds semantic search via ONE external key (~cents/mo), better for a large vault or fuzzy/cross-language queries.",
+      "Базовый поиск (BM25 + граф связей) уже включён — бесплатно, без ключа. Hybrid добавляет семантику через ОДИН внешний ключ (~центы/мес), лучше для большого вольта и нечётких/межъязычных запросов.",
+    )}${C.x}`,
+  );
+  if (await askYesNo(`  ${t("Enable hybrid memory?", "Включить hybrid-память?")}`, existing.MEMORY_SEARCH_MODE === "hybrid")) {
+    out.MEMORY_SEARCH_MODE = "hybrid";
+    const EMB = [
+      { id: "jina", key: "JINA_API_KEY", url: "https://jina.ai/embeddings", note: t("no-train, EU, ~$0.02/1M", "no-train, EU, ~$0.02/1M") },
+      { id: "deepinfra", key: "DEEPINFRA_API_KEY", url: "https://deepinfra.com/dash/api_keys", note: t("cheapest, BGE-M3", "дешевле всех, BGE-M3") },
+    ];
+    EMB.forEach((e, i) => console.log(`   ${i + 1}. ${e.id}  ${C.c}${e.url}${C.x}  ${C.y}(${e.note})${C.x}`));
+    const chEmb = await ask(`  ${t("Embedding provider (number)", "Провайдер эмбеддингов (номер)")}`, existing.DEEPINFRA_API_KEY && !existing.JINA_API_KEY ? "2" : "1");
+    let ei = parseInt(chEmb, 10) - 1;
+    if (isNaN(ei) || ei < 0 || ei >= EMB.length) ei = 0;
+    const eprov = EMB[ei];
+    const eExisting = process.env[eprov.key] || existing[eprov.key] || out[eprov.key] || "";
+    let ek = await ask(`  ${eprov.id} API key`, eExisting ? mask(eExisting) : "");
+    if (eExisting && (!ek || ek.endsWith(KEEP()))) ek = eExisting;
+    out[eprov.key] = (ek || "").trim();
+    console.log(`  ${C.y}${t("Index will build on the next nightly maintenance (or run: node scripts/memory/embed-index.ts).", "Индекс соберётся при ближайшем ночном обслуживании (или вручную: node scripts/memory/embed-index.ts).")}${C.x}`);
+  } else {
+    out.MEMORY_SEARCH_MODE = "grep";
+  }
 
   // ── Step 3: Telegram bot ──────────────────────────────────────────
   head(3, t("Telegram bot — how you talk to Iva", "Telegram-бот — через него вы говорите с Iva"));
