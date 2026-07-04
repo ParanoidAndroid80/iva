@@ -108,30 +108,28 @@
   <pre><code>curl -fsSL https://raw.githubusercontent.com/smixs/iva/main/install.sh | bash</code></pre>
 
   <h2>Why Iva</h2>
-  <p>OpenClaw, Hermes, nanobot — there are a lot of good agents out there. So why another one? Because
-  every one of them hands you the same pile of choices: which model, which memory, which search, how to
-  wire it together. Too much choice is the real problem. So I made the choices: I test agents, models,
-  stacks and harnesses all the time, keep what's actually best, and fold it into Iva — the best of every
-  agent in one. Open code on open models (DeepSeek, Kimi, GLM) — you pick the model by name, your key, no
-  markup. The Linux Mint of AI agents: one command, and it just works. Lots of agents out there; this
-  one's mine — now it's yours too.</p>
+  <p>Every agent out there hands you the same pile of choices: which model, which memory, which search,
+  how to wire it together. Too much choice is the real problem. So I made the choices: I test agents,
+  models and stacks all the time, keep what actually works, and fold it into Iva with simple defaults —
+  open code on open models (DeepSeek, Kimi, GLM), your key, no markup. The Linux Mint of AI agents: one
+  command, and it just works. This one's mine — now it's yours too.</p>
 
   <h2>What it can do</h2>
   <ul class="feat">
     <li>🎙️ <b>Voice &amp; video</b> — transcribes voice notes and video circles, understands many languages.</li>
-    <li>🧠 <b>Long-term memory</b> — a tree of plain files, no heavy database.</li>
-    <li>🔎 <b>Fast recall</b> — finds the right note in seconds.</li>
+    <li>🧠 <b>Layered memory</b> — day → week → month → year, plus fact cards on people, projects and decisions; rewrites facts that change instead of piling up contradictions.</li>
+    <li>🔎 <b>Smart search</b> — finds things by meaning and by links between cards, in any language — not just the exact word.</li>
+    <li>🛡️ <b>Safe by default</b> — forwards, files and web pages are screened for prompt-injection; secrets are scrubbed from replies.</li>
     <li>⏰ <b>On a schedule</b> — day or week digests, recurring jobs, inbox summaries, on time.</li>
     <li>🔔 <b>Reminders</b> — tell it what and when, it won't let you forget.</li>
     <li>🤖 <b>Your choice of model</b> — DeepSeek, Kimi, GLM and other open models.</li>
-    <li>🌐 <b>Does more</b> — web search, opens pages, drives a browser, connects to MCP servers.</li>
     <li>🔒 <b>Private</b> — the code and the memory stay on your server, not in someone's cloud.</li>
   </ul>
 
   <h2>Memory — the part that compounds</h2>
   <p>Iva's memory is shaped like a tree (and <em>iva</em> means <em>willow</em>). It's
   "low-context memory" by design: never the whole history in the model, just a tiny always-on core plus
-  whatever a task needs, found by a literal search over plain files.</p>
+  whatever a task needs, pulled in by a ranked search that scores cards by relevance and by the links between them.</p>
   <div class="tree">      🪵  TRUNK   — year + cards on people, projects, decisions
      ╱  ╲
     🌿 BRANCHES — monthly summaries, built from weeks, built from days
@@ -140,7 +138,7 @@
   <p>Every night Iva summarizes the leaves and folds them up the branches — a hierarchical summary DAG
   that compacts older days while keeping a pointer to every original. It's the part I've worked on
   longest (<a href="https://github.com/smixs/agent-second-brain">agent-second-brain</a> → <a href="https://github.com/smixs/autograph/tree/main">autograph</a> →
-  Iva), built on the <a href="https://papers.voltropy.com/LCM">LCM: Lossless Context Management</a> paper
+  Iva), built on the <a href="https://arxiv.org/abs/2605.04050">LCM: Lossless Context Management</a> paper
   plus a lot of practice — one of the best memory designs you'll find in a personal agent today. Zero
   infrastructure, fully inspectable, git-diffable — no vector DB to run, sync or pay for.</p>
 
