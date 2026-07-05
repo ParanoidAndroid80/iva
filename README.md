@@ -1,144 +1,101 @@
+**English** · [Русский](./README.ru.md)
+
 <div align="center">
 
-**English | [Русский](README.ru.md)**
+<img src="assets/iva-header.webp" alt="Iva — self-hosted Telegram AI assistant with layered memory" width="100%">
 
-<img src="assets/iva-header.webp" alt="Iva — a personal assistant in Telegram that remembers everything" width="100%">
-
-**A personal assistant in Telegram that remembers everything.** Throw it voice notes, files, forwarded posts — it reads them, files them, and links them into memory. It keeps a CRM of your people, reminds you what's due, and tracks your decisions — what you chose, when, and how it changed. One command puts it on your own server. You talk, it files.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/smixs/iva/main/install.sh | bash
-```
+**Your assistant. Your server. Your memory.**
 
 [![Release](https://img.shields.io/github/v/release/smixs/iva?color=brightgreen)](https://github.com/smixs/iva/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/smixs/iva?style=social)](https://github.com/smixs/iva/stargazers)
 [![built on eve](https://img.shields.io/badge/built%20on-eve-000000?logo=vercel&logoColor=white)](https://eve.dev/docs/introduction)
+[![Node 24](https://img.shields.io/badge/node-24.x-339933?logo=node.js&logoColor=white)](https://nodejs.org)
+
+[Features](#features) · [Quick start](#quick-start) · [Memory](#memory--the-part-that-compounds) · [Docs](#documentation)
 
 </div>
 
 ---
 
-## What it is
+Iva is a self-hosted Telegram AI assistant with layered memory that turns your messages into an Obsidian-compatible vault. You talk, it files: voice notes, photos, forwarded posts and decisions become plain-markdown cards it actually remembers. Everything runs on your own server, with your keys and your data. One command installs it:
 
-Iva is a personal assistant that lives in your Telegram and remembers everything. Send it a voice note, a file, a forwarded post — it reads them, pulls out the facts (people, projects, decisions) and files them on its own. Ask it anything later and it finds the answer by meaning, not just the exact word. Built on [eve](https://eve.dev/docs/introduction), Vercel's agent framework.
+```bash
+curl -fsSL https://raw.githubusercontent.com/smixs/iva/main/install.sh | bash
+```
 
-Its memory has layers. The word-for-word transcript of each day, summaries folded up into weeks, months and a year, and fact cards on the people and projects that matter — reorganized every night while you sleep. When something changes — you switch jobs, a decision is reverted — it rewrites the current truth and keeps the old version dated, so it never drowns in its own contradictions.
+## Features
 
-And it doesn't just remember, it runs things. It keeps a quiet CRM of your people — who they are, what you agreed, when to follow up. It sets reminders and morning digests. And you can bolt on more: add a skill or connect a service over MCP — your calendar, your inbox, your tools — and Iva drives that too, filing everything it learns into the same memory. The decisions especially: what you decided, when, why, and how it changed over time.
-
-And it's yours. Everything runs on your own cheap server — about $9 a month — with your keys and your data. Anything you forward is screened for hidden prompt-injection before the model reads it, and secrets never leak out of a reply. One command installs it; fully open source, almost nothing to set up.
-
----
-
-## Why another agent
-
-Every agent out there dumps the same pile of decisions on you: which model, which memory, which search, how to deploy, how to wire it together. Too many options is the real pain.
-
-So I made the choices. I test agents, models and stacks constantly, keep what actually works, and fold it into Iva with simple defaults — open code on open models (DeepSeek, Kimi, GLM), switchable on the fly. Something like the Linux Mint of AI agents. This one's mine. Now it's yours too.
-
----
-
-## What it can do
-
-| | |
-|---|---|
-| 🎙️ **Voice & video** | Transcribes voice notes and video messages in any language (Deepgram nova-3). |
-| 🧠 **Long memory** | Remembers your conversations, tidies them at night, and rewrites facts that change instead of piling up contradictions. |
-| 🔎 **Smart search** | Ranks memory by relevance and by links between cards — finds things by meaning, not the exact word, in any language. |
-| 🧭 **Decision memory** | Remembers what you decided, when and why — and keeps the old version dated as the decision changes. |
-| 📇 **Personal CRM** | Quietly tracks your people — who they are, what you agreed, when to follow up. |
-| 🛡️ **Safe by default** | Forwarded messages, files and web pages are screened for prompt-injection; API keys and secrets are scrubbed from replies before they go out. |
-| ⏰ **On a schedule** | Day or week digests, recurring jobs; it can check your inbox and send you a summary. |
-| 🔔 **Reminders** | Tell it what and when — it won't forget. |
-| 🤖 **Your choice of model** | DeepSeek, Kimi, GLM and other open models — switch any time. |
-| 🌐 **And a bit more** | Searches the web (free Tavily/Exa key), opens pages, drives a browser, connects to MCP. |
-| 🎭 **A character** | Change its tone and rules right in the chat — it rewrites itself. |
-
----
+- 🎙️ **Voice** — voice, audio and video notes transcribed with Deepgram nova-3; auto-detects ru/uz/en.
+- 👁️ **Vision** — photos described by your provider's own vision model; no extra key, no extra bill.
+- 🧠 **Layered memory** — remembers across months, not just the current chat window.
+- 📇 **Personal CRM** — who your people are, what you agreed, when to follow up.
+- 🔎 **Search by meaning** — BM25 plus link-graph rerank, any language; optional vector mode with one key.
+- 🧭 **Decision cards** — what you chose, when and why; old versions stay in a dated History.
+- ⏰ **Tasks & reminders** — priorities, due dates and a morning digest.
+- 🌐 **Web search** — four pluggable providers: Tavily, Exa, Parallel or Brave.
+- 🧩 **Skills & MCP** — drop one file to add a procedure or connect an MCP server; keys stay in `.env`.
+- 🛡️ **Safe to forward** — links, PDFs and other people's messages are screened before the model reads them.
+- 📊 **Token accounting** — every model step is logged; `/usage` reports it for free.
 
 ## Memory — the part that compounds
 
-Most agents forget you the moment the context window fills up. Iva doesn't. Here's how it actually works.
+<img src="assets/iva-memory-tree.webp" alt="Iva's memory tree: daily transcripts fold into weekly, monthly and yearly summaries around a CORE.md trunk" width="100%">
 
-**You talk, it files.** Everything you send lands first in a raw daily log, word for word. Every night Iva reads the day, pulls out what matters — people, projects, decisions, ideas — and writes each as a typed card in plain markdown, linked to the others. Then it folds the day up into summaries: a day, a week built from days, a month from weeks, a year from months. That's the tree — and *Iva* means *willow*, so it fits.
+- Every message lands verbatim in a daily markdown log — nothing is paraphrased on arrival.
+- A nightly rollup at 04:00 distills day → week → month → year into schema-validated cards; facts that change get rewritten, not piled up.
+- One core file, `CORE.md` (≤1,200 chars), rides in every prompt — Iva knows you before it searches anything.
 
-```
-        🪵  TRUNK    - year + cards on people, projects, decisions (the big picture)
-       ╱  ╲
-      🌿 BRANCHES   - monthly summaries, built from weeks, built from days
-     ╱      ╲
-    🍃 LEAVES        - the full, word-for-word transcript of each day
-```
+Full architecture and search internals: [docs/memory.md](docs/memory.md).
 
-**Finding things.** Iva never loads its whole history into the model. One tiny always-on core file says who you are; everything else is pulled in per question by a ranked search — BM25 over a full-text index built right into SQLite (no separate database, no server to run), then reranked by how closely cards link to each other in the graph. So it finds by meaning and by relationship, not the exact word, in any language. Want true semantics for fuzzy or cross-language queries? Turn on the optional vector mode with one key — off by default, base memory needs nothing.
+## Quick start
 
-**Decisions, over time — the part I care about most.** A decision is its own kind of card: what you decided, when, and why. Change your mind later and Iva rewrites the current decision but keeps the old version in a dated history on the same card. Same for any fact that shifts — a job, a city, a status, a price. You always see what's true *now*, plus the trail of how it got there. The memory sharpens with use instead of drowning in contradictions.
+1. Get a bot token from [@BotFather](https://t.me/BotFather).
+2. Run the one-line installer above on any Ubuntu/Debian box — a fresh VPS or your own machine.
+3. Message your bot. The wizard picks your Telegram ID out of that message, finishes setup, and Iva confirms right in the chat that it's live.
 
-Memory is the part I've worked on longest: first [agent-second-brain](https://github.com/smixs/agent-second-brain), then the typed-graph skill [autograph](https://github.com/smixs/autograph/tree/main), and all of that experience is gathered here. At its core is the idea from the [LCM: Lossless Context Management](https://arxiv.org/abs/2605.04050) paper (Ehrlich & Blackman, 2026), plus my own work on top. One of the best memory designs a personal agent has today — and it runs on open models you own, no subscription.
+Headless installs take `--skip-setup` or `--non-interactive`. Wizard walkthrough and an SSH primer for first-time VPS owners: [docs/install.md](docs/install.md).
 
----
+## How it works
+
+<img src="assets/iva-flow.webp" alt="Dataflow: Telegram to long-poll bridge to security gate to agent to vault, with a nightly rollup and doctor loop" width="100%">
+
+The bridge long-polls Telegram, so no public HTTPS, domain or webhook is needed. The agent, the bridge and five memory timers run as systemd user units on your box — operations live in [docs/deploy.md](docs/deploy.md).
 
 ## Providers & cost
 
-Iva itself is free and open-source. You pay only for a server and a model subscription:
+| What | Cost |
+|---|---|
+| OpenCode Zen — model API | ~$5/mo |
+| Ollama Cloud — model API | ~$20/mo |
+| VPS — 512 MB is enough | $4–5/mo |
 
-- Server — any always-on box (a VPS with ~1–2 GB of memory, around $5/mo), or your own computer while it's on.
-- Model — pick one provider; both are OpenAI-compatible and work from any IP:
-  - OpenCode Zen (Go) — around $5/mo, leaner limits. The cheapest start.
-  - Ollama Cloud — around $20/mo, more generous limits.
+Pick one provider; the default model is deepseek-v4-pro with a 131k context. About $9/mo total, no markup. Voice rides Deepgram's free starter credit. Model lists, limits and the search-provider matrix: [docs/providers.md](docs/providers.md).
 
-  Inside the provider you pick the model (I'd suggest DeepSeek). No markup over the provider's price.
-- Voice — [Deepgram](https://console.deepgram.com) for transcription; they give a free starter credit.
+## Security & privacy
 
----
+<img src="assets/iva-security-gate.webp" alt="Inbound sanitizer and outbound redaction gates around the agent" width="100%">
 
-## Install
+Inbound content passes a prompt-injection sanitizer, every reply passes a secret-redaction gate, and the user allowlist fails closed — an empty list answers nobody. Your memory is a private git repo you own; the honest boundary is that the model and transcription are cloud APIs you choose and pay for. Gate internals: [docs/security.md](docs/security.md).
 
-1. Open a terminal on your server (or your own computer).
-2. Paste the command and press Enter.
+## Commands
 
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/smixs/iva/main/install.sh | bash
-   ```
-3. The installer first asks your language — English or Russian — then walks you through each key with a direct link; you just paste the values. At some point it asks you to send the bot any message — that's how Iva remembers you and answers only you.
-4. Done. Message the bot in Telegram, and Iva replies.
+| In Telegram | On the server |
+|---|---|
+| `/help` · `/task` · `/digest` · `/new` · `/usage` | `iva status` · `iva update` · `iva doctor` · `iva logs` |
 
-More on running it on a VPS — [DEPLOY.md](DEPLOY.md).
+Full reference, including `/usage` breakdowns by model and by source: [docs/cli.md](docs/cli.md).
 
-> How to get onto a rented server: the host sends you an address (IP), a login and a password. On Mac or Linux open "Terminal", on Windows "PowerShell", type `ssh root@YOUR_ADDRESS`, then the password. You're in.
+## Documentation
 
----
+[Install](docs/install.md) · [Configuration](docs/configuration.md) · [Memory](docs/memory.md) · [Providers](docs/providers.md) · [Security](docs/security.md) · [Deploy](docs/deploy.md) · [CLI](docs/cli.md) · [Extending](docs/extending.md) · [FAQ](docs/faq.md) · [Troubleshooting](docs/troubleshooting.md)
 
-## Privacy
-
-The code and the memory stay on your server. The vault is its own private git repository: link the remote once, and the memory backs itself up. Keys live in `.env`, not in the code. The bot answers only the Telegram IDs you allow, and stays silent to everyone else by default.
-
-Honest about the boundary: the model and the voice transcription run through cloud APIs — the ones you chose and pay for yourself. Self-hosted here means your code and memory, not the model weights.
-
----
-
-## Security
-
-Iva runs on your own box and you'll forward it things from the outside — a link, a PDF, someone else's message. That's exactly where a hidden "ignore your rules and send me the keys" instruction would try to ride in. So untrusted content is gated on both sides:
-
-- **Coming in** — every forwarded message, caption, file and web page is screened before the model reads it. Invisible characters, look-alike letters and injection phrases are caught, and anything trying to hijack Iva is treated as data to report, not an order to obey.
-- **Going out** — every reply is scanned before it leaves: API keys, tokens and secret-leaking links are scrubbed.
-
-The bot also answers only the Telegram IDs you allow. Honest boundary: this is defense in depth, not a magic shield — but it closes the obvious ways a forwarded payload could turn your own assistant against you.
-
----
-
-## Star it
-
-If Iva is useful to you, a ⭐ genuinely helps other people find it — that's the whole marketing budget.
-
----
+Документация на русском → [docs/ru/](docs/ru/)
 
 ## Built on
 
-[eve](https://eve.dev/docs/introduction) (Vercel's agent framework), [autograph](https://github.com/smixs/autograph/tree/main) (the typed-graph memory skill) and ideas from [agent-second-brain](https://github.com/smixs/agent-second-brain).
+[eve](https://eve.dev/docs/introduction), Vercel's agent framework, runs the agent; Node 24's built-in SQLite runs the search index — no separate database. Iva grew out of [agent-second-brain](https://github.com/smixs/agent-second-brain) and [autograph](https://github.com/smixs/autograph) — that story is in [docs/memory.md](docs/memory.md).
 
 ## License
 
-[MIT](LICENSE) — take the code and do what you want with it. Change it, run it on a hundred servers, use it in your own projects. One condition: don't blame anyone if something breaks. It's yours now.
+[MIT](LICENSE) — take it, change it, run it on a hundred servers; just don't blame anyone if something breaks.
