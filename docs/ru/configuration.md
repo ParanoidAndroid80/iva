@@ -15,17 +15,20 @@ iva restart
 
 ## Провайдер модели
 
-Три провайдера. Выберите один через `MODEL_PROVIDER` и заполните только его блок. `ollama`/`opencode` — API-ключ (OpenAI-совместимы); `codex` — личная подписка OpenAI (ChatGPT) по OAuth, без ключа. Цены и полные списки моделей: [providers.md](../providers.md).
+Четыре провайдера. Выберите один через `MODEL_PROVIDER` и заполните только его блок. `ollama`/`opencode`/`openrouter` — API-ключ (OpenAI-совместимы); `codex` — личная подписка OpenAI (ChatGPT) по OAuth, без ключа. Цены и полные списки моделей: [providers.md](../providers.md).
 
 | Переменная | По умолчанию | Заметки |
 |---|---|---|
-| `MODEL_PROVIDER` | `ollama` | `ollama` (Ollama Cloud), `opencode` (OpenCode Zen) или `codex` (подписка OpenAI ChatGPT). |
+| `MODEL_PROVIDER` | `ollama` | `ollama` (Ollama Cloud), `opencode` (OpenCode Zen), `openrouter` (OpenRouter) или `codex` (подписка OpenAI ChatGPT). |
 | `OLLAMA_API_KEY` | — | Ключ с ollama.com. |
 | `OLLAMA_MODEL` | `deepseek-v4-pro` | Любая модель вашего тарифа Ollama Cloud. |
 | `OLLAMA_CONTEXT_WINDOW` | `131072` | См. предупреждение ниже. |
 | `OPENCODE_API_KEY` | — | Ключ с opencode.ai/auth. |
 | `OPENCODE_MODEL` | `opencode-go/deepseek-v4-pro` | Любая модель Zen Go. |
 | `OPENCODE_CONTEXT_WINDOW` | `131072` | То же предупреждение. |
+| `OPENROUTER_API_KEY` | — | Ключ с [openrouter.ai/keys](https://openrouter.ai/keys) (начинается с `sk-or-`). |
+| `OPENROUTER_MODEL` | `openai/gpt-5.1` | **Слаг** модели с [openrouter.ai/models](https://openrouter.ai/models), вид `vendor/model` (напр. `anthropic/claude-sonnet-4.5`). `iva config` шлёт живой тест-запрос, чтобы кривой слаг не проскочил. |
+| `OPENROUTER_CONTEXT_WINDOW` | `131072` | То же предупреждение — впишите реальное окно выбранной модели. |
 | `CODEX_MODEL` | `gpt-5.5` | Модель вашего тарифа OpenAI. `iva config` покажет реальный список подписки. |
 | `CODEX_CONTEXT_WINDOW` | `272000` | То же предупреждение — впишите реальное окно выбранной модели. |
 

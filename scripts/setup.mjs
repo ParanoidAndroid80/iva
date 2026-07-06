@@ -21,6 +21,7 @@ const dataDirAbs = (env) => {
 };
 const OLLAMA_BASE = "https://ollama.com/v1";
 const OPENCODE_BASE = "https://opencode.ai/zen/go/v1";
+const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 // OpenCode Go models — bare ID without the "opencode-go/" prefix: that's exactly what the
 // /v1 endpoint expects in the request body (with the prefix it answers "Model ... is not supported").
 const OPENCODE_MODELS = [
@@ -133,6 +134,7 @@ async function writeEnv(out) {
     "MODEL_PROVIDER",
     "OLLAMA_API_KEY", "OLLAMA_MODEL", "OLLAMA_CONTEXT_WINDOW",
     "OPENCODE_API_KEY", "OPENCODE_MODEL", "OPENCODE_CONTEXT_WINDOW",
+    "OPENROUTER_API_KEY", "OPENROUTER_MODEL", "OPENROUTER_CONTEXT_WINDOW",
     "CODEX_MODEL", "CODEX_CONTEXT_WINDOW",
     "TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_USERNAME", "TELEGRAM_WEBHOOK_SECRET_TOKEN",
     "TELEGRAM_ALLOWED_USER_IDS", "TELEGRAM_DIGEST_CHAT_ID",
@@ -167,6 +169,61 @@ async function opencodeCheck(key) {
     return null; // 200/404 — key is at least well-formed
   } catch {
     return null; // network flaky — don't block
+  }
+}
+// OpenRouter: ключ проверяем через GET /key (требует auth, токенов не тратит).
+async function openrouterKeyCheck(key) {
+  try {
+    const res = await fetch(`${OPENROUTER_BASE}/key`, { headers: { Authorization: `Bearer ${key}` } });
+    if (res.status === 401 || res.status === 403) {
+      return t(
+        "OpenRouter rejected the key (401/403). Copy it in full from https://openrouter.ai/keys (starts with sk-or-).",
+        "OpenRouter не принял ключ (401/403). Скопируйте целиком с https://openrouter.ai/keys (начинается с sk-or-).",
+      );
+    }
+    return null; // 200 (или иной не-401) — ключ well-formed
+  } catch {
+    return null; // сеть флапнула — не блокируем
+  }
+}
+// OpenRouter: ЖИВОЙ тест модели — реальный вызов chat/completions выбранным слагом.
+// Запрос НЕСЁТ минимальный tools-блок: Iva — агент, каждый ход шлёт tool-definitions, поэтому
+// chat-only модель (без function calling) сломается на первом же ходе. Один запрос ловит всё:
+//   кривой слаг → 400 "not a valid model id";  битый ключ → 401;
+//   модель без tool-эндпоинта → 404 "No endpoints found that support tool use".
+// Не-200 → возвращаем строку → мастер зациклит ввод. Именно это ловит «принято, а агент молчит».
+async function openrouterModelCheck(key, model) {
+  try {
+    const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: "Call the ping tool." }],
+        tools: [{ type: "function", function: { name: "ping", description: "health check", parameters: { type: "object", properties: {} } } }],
+        tool_choice: "auto",
+        max_tokens: 32,
+      }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg = j?.error?.message || `HTTP ${res.status}`;
+      return t(
+        `the model can't be used: ${msg}. Iva needs a chat model with tool/function calling — pick one on https://openrouter.ai/models (form vendor/model).`,
+        `модель не подходит: ${msg}. Iva нужна chat-модель с поддержкой инструментов (function calling) — выберите такую на https://openrouter.ai/models (вид vendor/model).`,
+      );
+    }
+    // 200 = ключ+слаг+tools ок. «Ответила» = есть content ИЛИ tool_calls (модель могла сразу дёрнуть tool).
+    const msg = j?.choices?.[0]?.message;
+    const answered = (msg?.content && msg.content.trim()) || (Array.isArray(msg?.tool_calls) && msg.tool_calls.length);
+    if (!answered) {
+      console.log(
+        `${C.y}${t("(model replied empty — maybe a reasoning model / max_tokens; proceeding)", "(модель ответила пусто — возможно reasoning-модель / max_tokens; продолжаю)")}${C.x}`,
+      );
+    }
+    return null; // слаг валиден и tool-совместим
+  } catch (e) {
+    return t(`request failed: ${e.message}`, `запрос не прошёл: ${e.message}`);
   }
 }
 async function deepgramCheck(key) {
@@ -243,10 +300,10 @@ async function main() {
 
   // Already configured? Don't walk every step — ask once.
   const prov0 = existing.MODEL_PROVIDER || "ollama";
-  const provModel = { opencode: "OPENCODE_MODEL", codex: "CODEX_MODEL" }[prov0] || "OLLAMA_MODEL";
-  // codex — доступ по OAuth-токену (data/codex-auth.json), у ollama/opencode — API-ключ в .env.
+  const provModel = { opencode: "OPENCODE_MODEL", openrouter: "OPENROUTER_MODEL", codex: "CODEX_MODEL" }[prov0] || "OLLAMA_MODEL";
+  // codex — доступ по OAuth-токену (data/codex-auth.json), у ollama/opencode/openrouter — API-ключ в .env.
   // ollama задан явно: `null ?? default` вернул бы ключ и для codex (null нуллиш) → мастер зацикливался бы.
-  const provKey = { ollama: "OLLAMA_API_KEY", opencode: "OPENCODE_API_KEY", codex: null }[prov0];
+  const provKey = { ollama: "OLLAMA_API_KEY", opencode: "OPENCODE_API_KEY", openrouter: "OPENROUTER_API_KEY", codex: null }[prov0];
   const REQUIRED = [provModel, "DEEPGRAM_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_ALLOWED_USER_IDS", ...(provKey ? [provKey] : [])];
   const loggedInCodex = prov0 !== "codex" || existsSync(authFilePath(dataDirAbs(existing)));
   const isComplete = loggedInCodex && REQUIRED.every((k) => (existing[k] || "").trim());
@@ -276,9 +333,11 @@ async function main() {
   console.log(`    1) Ollama Cloud — ${C.c}https://ollama.com${C.x} ${t("(~$20/mo, higher limits)", "(~$20/мес, лимиты побольше)")}`);
   console.log(`    2) OpenCode Zen — ${C.c}https://opencode.ai${C.x} ${t("(Go ~$5/mo, cheaper)", "(Go ~$5/мес, дешевле)")}`);
   console.log(`    3) OpenAI ${t("(ChatGPT subscription)", "(подписка ChatGPT)")} — ${C.c}chatgpt.com${C.x} ${t("(sign in, no API key)", "(вход по подписке, без API-ключа)")}`);
-  const provDef = { opencode: "2", codex: "3" }[prov0] || "1";
-  const provChoice = (await ask(`  ${t("Provider", "Провайдер")} (1/2/3)`, provDef)).trim();
-  const provider = provChoice === "2" ? "opencode" : provChoice === "3" ? "codex" : "ollama";
+  console.log(`    4) OpenRouter — ${C.c}https://openrouter.ai${C.x} ${t("(one key → 300+ models, pay-as-you-go)", "(один ключ → 300+ моделей, оплата по факту)")}`);
+  const provDef = { opencode: "2", codex: "3", openrouter: "4" }[prov0] || "1";
+  const provChoice = (await ask(`  ${t("Provider", "Провайдер")} (1/2/3/4)`, provDef)).trim();
+  const provider =
+    provChoice === "2" ? "opencode" : provChoice === "3" ? "codex" : provChoice === "4" ? "openrouter" : "ollama";
   out.MODEL_PROVIDER = provider;
 
   if (provider === "ollama") {
@@ -313,6 +372,34 @@ async function main() {
     out.OPENCODE_MODEL = await pickFromList(OPENCODE_MODELS, curModel, OPENCODE_MODELS[0]);
     out.OPENCODE_CONTEXT_WINDOW = out.OPENCODE_CONTEXT_WINDOW || "131072";
     console.log(`  → ${t("model", "модель")}: ${C.g}${out.OPENCODE_MODEL}${C.x}`);
+  } else if (provider === "openrouter") {
+    console.log(`\n  ${t("OpenRouter key", "Ключ OpenRouter")}: ${C.c}https://openrouter.ai/keys${C.x} ${t("(Create Key → copy sk-or-…).", "(Create Key → скопируйте sk-or-…).")}`);
+    out.OPENROUTER_API_KEY = await askRequired(`  ${t("Paste the OpenRouter key", "Вставьте ключ OpenRouter")}`, {
+      existing: process.env.OPENROUTER_API_KEY || existing.OPENROUTER_API_KEY || "",
+      validate: openrouterKeyCheck,
+    });
+    // 300+ моделей — пикер не подходит. Инструкция: откуда взять слаг и в каком виде, + живой тест.
+    console.log(`\n  ${t("Now the model.", "Теперь модель.")} ${t("Open", "Откройте")} ${C.c}https://openrouter.ai/models${C.x}, ${t("pick a model and copy its slug", "выберите модель и скопируйте её слаг")}`);
+    console.log(`  ${t("— the id under the name, form", "— id под названием, вид")} ${C.g}vendor/model${C.x} (${t("e.g.", "напр.")} ${C.g}anthropic/claude-sonnet-4.5${C.x}, ${C.g}openai/gpt-5.1${C.x}, ${C.g}google/gemini-2.5-pro${C.x}).`);
+    console.log(`  ${C.y}${t("I'll send a live test (incl. tool/function calling, which Iva needs) — so a wrong or chat-only model can't slip through and leave the bot mute.", "Сразу отправлю живой тест (включая поддержку инструментов — она нужна Iva) — чтобы кривая или chat-only модель не проскочила и бот не остался немым.")}${C.x}`);
+    for (;;) {
+      const m = (await ask(`  ${t("OpenRouter model slug", "Слаг модели OpenRouter")}`, out.OPENROUTER_MODEL || "")).trim();
+      if (!m) {
+        console.log(`${C.y}  ⚠ ${t("Required — paste a slug from openrouter.ai/models.", "Обязательно — вставьте слаг с openrouter.ai/models.")}${C.x}\n`);
+        continue;
+      }
+      process.stdout.write(`  ${t("testing the model answers…", "проверяю, что модель отвечает…")} `);
+      const err = await openrouterModelCheck(out.OPENROUTER_API_KEY, m);
+      if (err) {
+        console.log(`${C.r}${t("not ok", "не ок")}${C.x}\n${C.y}  ⚠ ${err}${C.x}\n`);
+        continue;
+      }
+      console.log(`${C.g}${t("ok — the model answered", "ок — модель ответила")}${C.x}`);
+      out.OPENROUTER_MODEL = m;
+      break;
+    }
+    out.OPENROUTER_CONTEXT_WINDOW = out.OPENROUTER_CONTEXT_WINDOW || "131072";
+    console.log(`  → ${t("model", "модель")}: ${C.g}${out.OPENROUTER_MODEL}${C.x}`);
   } else {
     // codex — вход по подписке OpenAI (OAuth), без API-ключа. Токен → data/codex-auth.json.
     const dataDir = dataDirAbs({ ...existing, ...out });
@@ -510,7 +597,8 @@ async function main() {
   // ── Write .env ────────────────────────────────────────────────────
   await writeEnv(out);
 
-  const chosenModel = { opencode: out.OPENCODE_MODEL, codex: out.CODEX_MODEL }[provider] || out.OLLAMA_MODEL;
+  const chosenModel =
+    { opencode: out.OPENCODE_MODEL, openrouter: out.OPENROUTER_MODEL, codex: out.CODEX_MODEL }[provider] || out.OLLAMA_MODEL;
   console.log();
   hr();
   console.log(`${C.g}${C.b}  ✓ ${t("Done — everything written to .env", "Готово — всё записано в .env")}${C.x}`);

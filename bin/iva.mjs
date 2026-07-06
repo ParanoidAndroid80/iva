@@ -358,6 +358,7 @@ function cmdDoctor() {
     const PROV_KEYS = {
       ollama: ["OLLAMA_API_KEY", "OLLAMA_MODEL"],
       opencode: ["OPENCODE_API_KEY", "OPENCODE_MODEL"],
+      openrouter: ["OPENROUTER_API_KEY", "OPENROUTER_MODEL"],
       codex: ["CODEX_MODEL"],
     };
     const REQUIRED = [...(PROV_KEYS[prov] || PROV_KEYS.ollama), "DEEPGRAM_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_ALLOWED_USER_IDS"];

@@ -5,7 +5,7 @@ import { CODEX_BASE_URL, codexAuthHeaders } from "../scripts/lib/codex-oauth.mjs
 type WrappableModel = Parameters<typeof wrapLanguageModel>[0]["model"];
 
 // Единый источник конфигурации провайдера модели (выбор раз при старте через MODEL_PROVIDER).
-// ollama/opencode — OpenAI-совместимы (chat/completions, статичный ключ из .env).
+// ollama/opencode/openrouter — OpenAI-совместимы (chat/completions, статичный ключ из .env).
 // codex — личная подписка OpenAI (ChatGPT): Responses API + OAuth-токен (data/codex-auth.json,
 // `iva login`). Здесь же зашита vision-модель провайдера — её зовёт agent/vision.ts.
 const PROVIDER = process.env.MODEL_PROVIDER ?? "ollama";
@@ -26,6 +26,17 @@ const PROVIDERS = {
     textModel: (process.env.OPENCODE_MODEL ?? "deepseek-v4-pro").replace(/^opencode-go\//, ""),
     contextWindow: Number(process.env.OPENCODE_CONTEXT_WINDOW ?? 131072),
     visionModel: "gemini-3-flash",
+  },
+  openrouter: {
+    baseURL: "https://openrouter.ai/api/v1",
+    apiKey: process.env.OPENROUTER_API_KEY,
+    // Слаг модели вида vendor/model (напр. anthropic/claude-sonnet-4.5) — задаётся мастером.
+    // Дефолт — лишь заглушка на случай ручного .env; мастер всегда перезапишет живой проверкой.
+    textModel: process.env.OPENROUTER_MODEL ?? "openai/gpt-5.1",
+    contextWindow: Number(process.env.OPENROUTER_CONTEXT_WINDOW ?? 131072),
+    // Дешёвая гарантированно-мультимодальная модель для картинок (как gemini-3-flash у opencode):
+    // vision работает независимо от выбранной текстовой модели (та может быть text-only).
+    visionModel: "google/gemini-2.5-flash",
   },
   codex: {
     baseURL: CODEX_BASE_URL,

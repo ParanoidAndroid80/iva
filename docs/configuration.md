@@ -12,17 +12,20 @@ No rebuild. Swapping a model, key or provider is edit → restart.
 
 ## Model provider
 
-Three providers. Pick one with `MODEL_PROVIDER` and fill only that block. `ollama`/`opencode` are OpenAI-compatible API keys; `codex` rides your OpenAI (ChatGPT) subscription via OAuth — no key. Prices and full model lists: [providers.md](./providers.md).
+Four providers. Pick one with `MODEL_PROVIDER` and fill only that block. `ollama`/`opencode`/`openrouter` are OpenAI-compatible API keys; `codex` rides your OpenAI (ChatGPT) subscription via OAuth — no key. Prices and full model lists: [providers.md](./providers.md).
 
 | Variable | Default | Notes |
 |---|---|---|
-| `MODEL_PROVIDER` | `ollama` | `ollama` (Ollama Cloud), `opencode` (OpenCode Zen) or `codex` (OpenAI ChatGPT subscription). |
+| `MODEL_PROVIDER` | `ollama` | `ollama` (Ollama Cloud), `opencode` (OpenCode Zen), `openrouter` (OpenRouter) or `codex` (OpenAI ChatGPT subscription). |
 | `OLLAMA_API_KEY` | — | Key from ollama.com. |
 | `OLLAMA_MODEL` | `deepseek-v4-pro` | Any model on your Ollama Cloud plan. |
 | `OLLAMA_CONTEXT_WINDOW` | `131072` | See warning below. |
 | `OPENCODE_API_KEY` | — | Key from opencode.ai/auth. |
 | `OPENCODE_MODEL` | `opencode-go/deepseek-v4-pro` | Any Zen Go model. |
 | `OPENCODE_CONTEXT_WINDOW` | `131072` | Same warning. |
+| `OPENROUTER_API_KEY` | — | Key from [openrouter.ai/keys](https://openrouter.ai/keys) (starts with `sk-or-`). |
+| `OPENROUTER_MODEL` | `openai/gpt-5.1` | The model **slug** from [openrouter.ai/models](https://openrouter.ai/models), form `vendor/model` (e.g. `anthropic/claude-sonnet-4.5`). `iva config` sends a live test request so a wrong slug can't slip through. |
+| `OPENROUTER_CONTEXT_WINDOW` | `131072` | Same warning — set the real window of the model you picked. |
 | `CODEX_MODEL` | `gpt-5.5` | Model from your OpenAI plan. `iva config` lists what your subscription actually exposes. |
 | `CODEX_CONTEXT_WINDOW` | `272000` | Same warning — set the real window of the model you picked. |
 

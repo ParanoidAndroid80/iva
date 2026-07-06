@@ -16,9 +16,11 @@ const PROVIDER = process.env.MODEL_PROVIDER ?? "ollama";
 const MODEL =
   PROVIDER === "codex"
     ? (process.env.CODEX_MODEL ?? "gpt-5.5")
-    : PROVIDER === "opencode"
-      ? (process.env.OPENCODE_MODEL ?? "deepseek-v4-pro").replace(/^opencode-go\//, "")
-      : (process.env.OLLAMA_MODEL ?? "deepseek-v4-pro");
+    : PROVIDER === "openrouter"
+      ? (process.env.OPENROUTER_MODEL ?? "openai/gpt-5.1")
+      : PROVIDER === "opencode"
+        ? (process.env.OPENCODE_MODEL ?? "deepseek-v4-pro").replace(/^opencode-go\//, "")
+        : (process.env.OLLAMA_MODEL ?? "deepseek-v4-pro");
 
 interface StepData {
   stepIndex: number;
