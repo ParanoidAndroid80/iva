@@ -7,4 +7,5 @@ Type=oneshot
 WorkingDirectory=__PROJECT_DIR__
 EnvironmentFile=__PROJECT_DIR__/.env
 Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStartPre=/bin/sh -c 'i=0; while [ "$i" -lt 60 ]; do /usr/bin/curl -fsS --max-time 2 "$ASSISTANT_HOST/eve/v1/health" >/dev/null && exit 0; i=$((i+1)); sleep 1; done; exit 1'
 ExecStart=__NODE_BIN__ --env-file=.env scripts/memory/rollup.ts monthly

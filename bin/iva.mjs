@@ -111,8 +111,11 @@ function ivaServiceBody() {
     // index.mjs prewarm не делает → первое же вложение падает SandboxTemplateNotProvisionedError
     // (шаблона нет в .eve/sandbox-cache). Ключ шаблона — контент-хеш, после iva update он меняется,
     // поэтому provision обязан идти на каждом старте, а не разово. eve start остаётся foreground.
-    `ExecStart=${NODE} ${ROOT}/node_modules/eve/bin/eve.js start`,
+    `ExecStart=${NODE} ${ROOT}/node_modules/eve/bin/eve.js start --host 127.0.0.1`,
     `Environment=PORT=${port}`,
+    // Iva is consumed by the local Telegram bridge and memory jobs; do not expose it publicly.
+    "Environment=HOST=127.0.0.1",
+    "Environment=NITRO_HOST=127.0.0.1",
     `Environment=PATH=${NODE_BIN_DIR}:%h/.local/bin:/usr/local/bin:/usr/bin:/bin`,
     "Environment=AGENT_BROWSER_MAX_OUTPUT=24000",
     "Restart=always",

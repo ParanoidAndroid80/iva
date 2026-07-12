@@ -2,7 +2,7 @@
 Description=Iva memory rollup (weekly) — Sun ~04:15 local
 
 [Timer]
-OnCalendar=Sun *-*-* 04:15:00
+OnCalendar=Sun *-*-* 04:15:00 Europe/Moscow
 Persistent=true
 
 [Install]
